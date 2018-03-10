@@ -1,0 +1,1 @@
+sed 's/\([0-9]\)\(\ \|\]\)/\1,\2/g' $1 | awk '{ if ($0 !~ /=/) { print gensub("\\[","","g") } else { print } }' | awk '{ if ($0 !~ /=/) { print gensub("\\]","","g") } else { print } }' | sed 's/,\]/\]/g' | sed 's/,\}\;/\}\;/g' > $2
