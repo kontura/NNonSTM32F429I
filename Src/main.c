@@ -61,6 +61,8 @@
     
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
+TIM_HandleTypeDef TimHandle;
+uint16_t uwPrescalerValue = 0;
 /* SDRAM handler declaration */
 SDRAM_HandleTypeDef hsdram;
 FMC_SDRAM_TimingTypeDef SDRAM_Timing;
@@ -106,6 +108,35 @@ int main(void)
   /* Configure the system clock to 180 MHz */
   SystemClock_Config();
   
+  /* Compute the prescaler value to have TIM3 counter clock equal to 10 KHz */
+  uwPrescalerValue = (uint32_t) ((SystemCoreClock /2) / 10000) - 1;
+  
+  /* Set TIMx instance */
+  TimHandle.Instance = TIMx;
+  /* Initialize TIM3 peripheral as follows:
+       + Period = 10000 - 1
+       + Prescaler = ((SystemCoreClock/2)/10000) - 1
+       + ClockDivision = 0
+       + Counter direction = Up
+  */
+  TimHandle.Init.Period = 10000 - 1;
+  TimHandle.Init.Prescaler = uwPrescalerValue;
+  TimHandle.Init.ClockDivision = 0;
+  TimHandle.Init.CounterMode = TIM_COUNTERMODE_UP;
+  if(HAL_TIM_Base_Init(&TimHandle) != HAL_OK)
+  {
+    /* Initialization Error */
+    Error_Handler();
+  }
+  
+  /*##-2- Start the TIM Base generation in interrupt mode ####################*/
+  /* Start Channel1 */
+  if(HAL_TIM_Base_Start_IT(&TimHandle) != HAL_OK)
+  {
+    /* Starting Error */
+    Error_Handler();
+  }
+
   /*##-1- Configure the SDRAM device #########################################*/
   /* SDRAM device configuration */ 
   hsdram.Instance = FMC_SDRAM_DEVICE;
@@ -151,33 +182,33 @@ int main(void)
   
   /* Fill the buffer to write */
   Fill_Buffer(aTxBuffer, BUFFER_SIZE, 0xA244250F);   
-  
-  /* Write data to the SDRAM memory */
-//  for (uwIndex = 0; uwIndex < 20000; uwIndex++)
-//  {
-//    *(__IO float32_t*) (SDRAM_BANK_ADDR + WRITE_READ_ADDR + 4*uwIndex) = l1_w[uwIndex];
-//  }    
-//  for (uwIndex = 20000; uwIndex < 84000; uwIndex++)
-//  {
-//    *(__IO float32_t*) (SDRAM_BANK_ADDR + WRITE_READ_ADDR + 4*uwIndex) = l2_w[uwIndex];
-//  }    
-  
-  /* Read back data from the SDRAM memory */
-//  for (uwIndex = 0; uwIndex < BUFFER_SIZE; uwIndex++)
-//  {
-//    aRxBuffer[uwIndex] = *(__IO float32_t*) (SDRAM_BANK_ADDR + WRITE_READ_ADDR + 4*uwIndex);
-//   } 
 
-  /*##-3- Checking data integrity ############################################*/    
+/* Write data to the SDRAM memory */
+  for (uwIndex = 0; uwIndex < 20000; uwIndex++)
+  {
+    *(__IO float32_t*) (SDRAM_BANK_ADDR + WRITE_READ_ADDR + 4*uwIndex) = l1_w[uwIndex];
+  }    
+  for (uwIndex = 20000; uwIndex < 84000; uwIndex++)
+  {
+    *(__IO float32_t*) (SDRAM_BANK_ADDR + WRITE_READ_ADDR + 4*uwIndex) = l2_w[uwIndex];
+  }    
 
-//  for (uwIndex = 0; (uwIndex < BUFFER_SIZE) && (uwWriteReadStatus == 0); uwIndex++)
-//  {
-//    if (aRxBuffer[uwIndex] != l1_w[uwIndex])
-//    {
-//      uwWriteReadStatus++;
-//    }
-//  }	
-//
+/* Read back data from the SDRAM memory */
+  for (uwIndex = 0; uwIndex < BUFFER_SIZE; uwIndex++)
+  {
+    aRxBuffer[uwIndex] = *(__IO float32_t*) (SDRAM_BANK_ADDR + WRITE_READ_ADDR + 4*uwIndex);
+   } 
+
+/*##-3- Checking data integrity ############################################*/    
+
+  for (uwIndex = 0; (uwIndex < BUFFER_SIZE) && (uwWriteReadStatus == 0); uwIndex++)
+  {
+    if (aRxBuffer[uwIndex] != l1_w[uwIndex])
+    {
+      uwWriteReadStatus++;
+    }
+  }	
+
   BSP_LED_Off(LED3);
   BSP_LED_Off(LED3);
   if (!test())
@@ -206,6 +237,11 @@ int main(void)
   while (1)
   {
   }
+}
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  BSP_LED_Toggle(LED3);
 }
 
 uint32_t net_2layers(const float32_t* letter){

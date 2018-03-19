@@ -2,7 +2,7 @@
 cube=/home/alex/usr/school/DIP/example/STM32Cube_FW_F4_V1.19.0
 
 SRCS = system_stm32f4xx.c stm32f429i_discovery_sdram.c stm32f4xx_hal_sdram.c stm32f4xx_it.c \
-			 stm32f4xx_hal_msp.c stm32f4xx_hal.c stm32f4xx_hal_gpio.c stm32f4xx_hal_ltdc.c \
+			 stm32f4xx_hal_msp.c stm32f4xx_hal_tim.c stm32f4xx_hal_tim_ex.c stm32f4xx_hal.c stm32f4xx_hal_gpio.c stm32f4xx_hal_ltdc.c \
 			 stm32f4xx_hal_rcc.c stm32f4xx_hal_cortex.c stm32f4xx_hal_rcc_ex.c stm32f4xx_hal_pwr_ex.c \
 			 stm32f429i_discovery.c stm32f4xx_hal_i2c.c stm32f4xx_hal_spi.c stm32f4xx_hal_dma.c \
 			 stm32f4xx_ll_fmc.c ili9341.c syscalls.c conv.c activation_functions.c tests.c utility.c main.c 
