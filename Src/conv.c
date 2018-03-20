@@ -1,4 +1,5 @@
 
+
 #include "conv.h"
 
 float32_t max(float32_t a[], float32_t n){
@@ -132,4 +133,42 @@ void convolution_additive(const float32_t in[], uint32_t input_side, float32_t o
     }
   }
 
+}
+
+void convolution_optimized(const float32_t in[], uint32_t input_side, float32_t out[], const float32_t weights[], uint32_t weights_side){
+  uint32_t stride = 1;
+  uint32_t output_side = (input_side/stride) - (weights_side - 1);
+  uint32_t output_size = (output_side)*(output_side+weights_side-1);
+  uint32_t weights_size = weights_side * weights_side + ((input_side-weights_side)*(weights_side-1));
+
+  //TODO here could be alloc and then free, yet I dont know how, so far
+  float32_t conv_out[28*28+116] = {[0 ... 899] = 0};
+  //float32_t conv_out[1001] = calloc(10 * sizeof(float32_t), 0);
+
+  //arm_conv_f32(in, input_side*input_side, weights, weights_size, conv_out);
+  uint32_t start = weights_size-1;
+  arm_conv_partial_f32(in, input_side*input_side, weights, weights_size, conv_out, start ,output_size);
+
+  for(uint32_t i = 0; i<output_side; i++){
+    arm_copy_f32(conv_out+(i*(input_side))+(weights_size-1), out+(i*(output_side)), output_side);
+  }
+}
+
+void convolution_additive_optimized(const float32_t in[], uint32_t input_side, float32_t out[], const float32_t weights[], uint32_t weights_side){
+  uint32_t stride = 1;
+  uint32_t output_side = (input_side/stride) - (weights_side - 1);
+  uint32_t output_size = (output_side)*(output_side)+(16); //only for filter of size 5x5
+  float32_t conv_out[201] = {[0 ... 200] = 0};
+
+  arm_conv_partial_f32(in, input_side, weights, weights_side, conv_out, 5*5+4*23-1, output_size);
+  arm_copy_f32(conv_out+23, conv_out+27, 24);
+  arm_copy_f32(conv_out+46, conv_out+54, 24);
+  arm_copy_f32(conv_out+69, conv_out+81, 24);
+  arm_copy_f32(conv_out+92, conv_out+108, 24);
+
+  arm_matrix_instance_f32 a = {output_side, output_side, conv_out};
+  arm_matrix_instance_f32 b = {output_side, output_side, out};
+  arm_matrix_instance_f32 c = {output_side, output_side, out};
+  arm_mat_add_f32(&a, &b, &c);
+  arm_copy_f32(c.pData, out, output_side*output_side);
 }

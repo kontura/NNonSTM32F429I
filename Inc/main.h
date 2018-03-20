@@ -50,6 +50,7 @@
 uint32_t net_2layers(const float32_t* letter);
 uint32_t net_3layers(const float32_t* letter);
 uint32_t net_5layers(const float32_t* letter);
+uint32_t net_5layers_optimized(const float32_t* letter);
 
 /* Exported types ------------------------------------------------------------*/
 /* Exported constants --------------------------------------------------------*/

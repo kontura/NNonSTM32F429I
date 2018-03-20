@@ -14,6 +14,7 @@ uint8_t test();
 uint8_t pooling_tests();
 uint8_t sigmoid_tests();
 uint8_t convolution_tests();
+uint8_t convolution_optimized_tests();
 uint8_t soft_max_tests();
 uint8_t ReLU_tests();
 uint8_t dot_product_tests();
