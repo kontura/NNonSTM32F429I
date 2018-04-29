@@ -61,6 +61,37 @@ void pooling(float32_t in[], float32_t out[], uint32_t side, float32_t(*pooling_
   }
 }
 
+void pooling_optimized(float32_t in[], float32_t out[], uint32_t side, void(*pooling_function)(float32_t*, uint32_t, float32_t*, float32_t*)){
+  /*          j
+   *   ----------------
+   *  | x x x x x x x x       
+   *  | x x x x x x x x       
+   *  | x x a b x x x x       x x x x 
+   * i| x x c d x x x x  -->  x a x x 
+   *  | x x x x x x x x       x x x x 
+   *  | x x x x x x x x       x x x x 
+   *  | x x x x x x x x        
+   *  | x x x x x x x x        
+   */
+
+  float32_t region[4];
+  uint32_t output_side = side/2;
+  float32_t result;
+  uint32_t result_pos;
+
+  for(uint32_t i = 0; i<side; i=i+2){
+    for(uint32_t j = 0; j<side; j=j+2){
+      region[0] = in[coords(i,j,side)];
+      region[1] = in[coords(i+1,j,side)];
+      region[2] = in[coords(i,j+1,side)];
+      region[3] = in[coords(i+1,j+1,side)];
+
+      pooling_function(region, 4, &result, &result_pos);
+      out[coords(i/2,j/2,output_side)] = result;
+    }
+  }
+}
+
 void convolution_with_activation(const float32_t in[], uint32_t input_side, float32_t out[], const float32_t weights[], uint32_t weights_side, float32_t bias, float32_t(*activation_fn)(float32_t)){
   /*          j
    *   ----------------
@@ -142,15 +173,33 @@ void convolution_optimized(const float32_t in[], uint32_t input_side, float32_t 
   uint32_t weights_size = weights_side * weights_side + ((input_side-weights_side)*(weights_side-1));
 
   //TODO here could be alloc and then free, yet I dont know how, so far
-  float32_t conv_out[28*28+116] = {[0 ... 899] = 0};
+  //float32_t conv_out[28*28+116] = {[0 ... 899] = 0};
   //float32_t conv_out[1001] = calloc(10 * sizeof(float32_t), 0);
 
   //arm_conv_f32(in, input_side*input_side, weights, weights_size, conv_out);
   uint32_t start = weights_size-1;
-  arm_conv_partial_f32(in, input_side*input_side, weights, weights_size, conv_out, start ,output_size);
+  //arm_conv_partial_f32(in, input_side*input_side, weights, weights_size, conv_out, start ,output_size);
+  arm_conv_partial_f32(in, input_side*input_side, weights, weights_size, out, start ,output_size);
 
   for(uint32_t i = 0; i<output_side; i++){
-    arm_copy_f32(conv_out+(i*(input_side))+(weights_size-1), out+(i*(output_side)), output_side);
+    arm_copy_f32(out+(i*(input_side))+(weights_size-1), out+(i*(output_side)), output_side);
+  }
+}
+void convolution_optimized_one_go(const float32_t in[], uint32_t input_side, float32_t out[], const float32_t weights[], uint32_t weights_size){
+  uint32_t stride = 1;
+  uint32_t output_side = (input_side/stride) - (5 - 1);
+  uint32_t output_size = (output_side)*(output_side+5-1);
+
+  //TODO here could be alloc and then free, yet I dont know how, so far
+  //float32_t conv_out[28*28+116] = {[0 ... 899] = 0};
+  //float32_t conv_out[1001] = calloc(10 * sizeof(float32_t), 0);
+
+  arm_conv_f32(in, input_side*input_side, weights, weights_size, out);
+  //arm_conv_partial_f32(in, input_side*input_side, weights, weights_size, conv_out, start ,output_size);
+  //arm_conv_partial_f32(in, input_side*input_side, weights, weights_size, out, start ,output_size);
+
+  for(uint32_t i = 0; i<output_side; i++){
+    arm_copy_f32(out+(i*(input_side))+(weights_size-1), out+(i*(output_side)), output_side);
   }
 }
 

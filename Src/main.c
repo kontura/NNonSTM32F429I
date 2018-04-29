@@ -41,7 +41,7 @@
 #include "letters10_30.h"
 #include "test_letters.h"
 //#include "tmp_out.h"
-#include "exported_for_test14.h"
+#include "exported_for_test19.h"
 
 #include "tmp_out_s.h"
 #include "tmp_out_ss.h"
@@ -59,6 +59,9 @@
 #define WRITE_READ_ADDR     ((uint32_t)0x0800)
 #define REFRESH_COUNT       ((uint32_t)0x056A)   /* SDRAM refresh counter (90MHz SDRAM clock) */
     
+float32_t *dynamic_letter = (float32_t*) 0x8180000;
+uint32_t *one_spot = (uint32_t*) 0x81A0000;
+
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 TIM_HandleTypeDef TimHandle;
@@ -251,6 +254,7 @@ int main(void)
 
   /* Infinite loop */  
   BSP_LED_On(LED4);     
+  *one_spot = net_5layers_optimized(dynamic_letter);
   while (1)
   {
   }
@@ -399,10 +403,13 @@ uint32_t net_5layers(const float32_t* letter){
 }
 
 uint32_t net_5layers_optimized(const float32_t* letter){
-  float32_t l0_feature_maps[24*24*20] = {[0 ... 11519] = 0};
-  float32_t l0_pooled_feature_maps[12*12*23] = {[0 ... (12*12*23)-1] = 0};
+  //float32_t l0_feature_maps[24*24*20] = {[0 ... 11519] = 0};
+  //float32_t l0_feature_maps[24*24*21] = {[0 ... (24*24*21)-1] = 0}; //multiply by 21, cause we need some execess space for insitu convolution
+  float32_t l0_feature_maps[18680+24*24] = {[0 ... (24*24+18680)-1] = 0};
+  float32_t l0_pooled_feature_maps[12*12*20] = {[0 ... (12*12*20)-1] = 0};
 
   float32_t l1_feature_maps[8*8*40] = {[0 ... 2559] = 0};
+  float32_t tmp_l1_f_m[200] = {[0 ... (200)-1] = 0};
   float32_t l1_pooled_feature_maps[4*4*40] = {[0 ... (4*4*40)-1] = 0};
 
   float32_t l2_full_connection[100] = {[0 ... 99] = 0};
@@ -417,9 +424,11 @@ uint32_t net_5layers_optimized(const float32_t* letter){
   uint32_t l4_size = 10;
 
   //layer 0
+
+  convolution_optimized_one_go(letter, 28, l0_feature_maps, l0_w_o_in_one, 15680);
   for(uint32_t i=0; i<l0_size; i++){
-    convolution_optimized(letter, 28, l0_feature_maps+(i*24*24), l0_w_o+(i*(5*5+4*23)), 5);
-    pooling(l0_feature_maps+(i*24*24), l0_pooled_feature_maps+(i*12*12), 24, &max);
+   // convolution_optimized(letter, 28, l0_feature_maps+(i*24*24), l0_w_o+(i*(5*5+4*23)), 5);
+    pooling_optimized(l0_feature_maps+(i*24*24), l0_pooled_feature_maps+(i*12*12), 24, &arm_max_f32);
     for(uint32_t j=0; j<12*12; j++){
       (l0_pooled_feature_maps+(i*12*12))[j] = ReLU((l0_pooled_feature_maps+(i*12*12))[j] + l0_b[i]);
     }
@@ -428,9 +437,10 @@ uint32_t net_5layers_optimized(const float32_t* letter){
   //layer 1
   for(uint32_t i=0; i<l1_size; i++){
    for(uint32_t j=0; j<l0_size; j++){
-     convolution_additive(l0_pooled_feature_maps+(j*12*12), 12, l1_feature_maps+(i*8*8), l1_w+((i*5*5*l0_size)+(j*5*5)), 5);
+     convolution_optimized(l0_pooled_feature_maps+(j*12*12), 12, tmp_l1_f_m, l1_w_o+((i*(5*5+4*7)*l0_size)+(j*(5*5+4*7))), 5);
+     arm_add_f32(l1_feature_maps+(i*8*8), tmp_l1_f_m, l1_feature_maps+(i*8*8), 8*8);
    }
-   pooling(l1_feature_maps+(i*8*8), l1_pooled_feature_maps+(i*4*4), 8, &max);
+   pooling_optimized(l1_feature_maps+(i*8*8), l1_pooled_feature_maps+(i*4*4), 8, &arm_max_f32);
    for(uint32_t j=0; j<4*4; j++){
      (l1_pooled_feature_maps+(i*4*4))[j] = ReLU((l1_pooled_feature_maps+(i*4*4))[j] + l1_b[i]);
    }
@@ -438,21 +448,30 @@ uint32_t net_5layers_optimized(const float32_t* letter){
 
   //layer 2
   for(uint32_t i=0; i<l2_size; i++){
-    for(uint32_t j=0; j<l1_size;j++){
-      l2_full_connection[i] += dot_product_with_nth_column(l1_pooled_feature_maps+(j*4*4), l2_w+((j*4*4*100)+i), 4*4, 100);
-    }
+   // for(uint32_t j=0; j<l1_size;j++){
+   //   //l2_full_connection[i] += dot_product_with_nth_column(l1_pooled_feature_maps+(j*4*4), l2_w+((j*4*4*100)+i), 4*4, 100);
+
+   //   arm_dot_prod_f32(l1_pooled_feature_maps+(j*4*4), l2_w_o+((i*4*4*40)+(j*4*4)) ,4*4 , &tmp);
+   //   l2_full_connection[i] += tmp;
+   // }
+    arm_dot_prod_f32(l1_pooled_feature_maps, l2_w_o+(i*4*4*40), 4*4*40, l2_full_connection+i);
     l2_full_connection[i] = ReLU(l2_full_connection[i] + l2_b[i]);
   }
 
   //layer 3
   for(uint32_t i=0; i<l3_size; i++){
-    l3_full_connection[i] = dot_product_with_nth_column(l2_full_connection, l3_w+i, 100, 100);
+    //l3_full_connection[i] = dot_product_with_nth_column(l2_full_connection, l3_w+i, 100, 100);
+    arm_dot_prod_f32(l2_full_connection, l3_w_o+(i*l2_size), l2_size, l3_full_connection+i);
+    //l2_full_connection[i] += tmp;
+
+
     l3_full_connection[i] = ReLU(l3_full_connection[i] + l3_b[i]);
   }
 
   //layer 4
   for(uint32_t i=0; i<l4_size; i++){
-    l4_soft_max_result[i] = dot_product_with_nth_column(l3_full_connection, l4_w+i, 100, 10);
+    //l4_soft_max_result[i] = dot_product_with_nth_column(l3_full_connection, l4_w+i, 100, 10);
+    arm_dot_prod_f32(l3_full_connection, l4_w_o+(i*l3_size), l3_size, l4_soft_max_result+i);
     l4_soft_max_result[i] = l4_soft_max_result[i] + l4_b[i];
   }
   soft_max(l4_soft_max_result, 10, out);

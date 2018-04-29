@@ -18,6 +18,8 @@ void convolution_optimized(const float32_t in[], uint32_t input_side, float32_t 
 float32_t dot_product(const float32_t w[], const float32_t a[], uint32_t vector_size);
 float32_t dot_product_with_nth_column(const float32_t w[], const float32_t a[], uint32_t vector_size, uint32_t n);
 
+void convolution_optimized_one_go(const float32_t in[], uint32_t input_side, float32_t out[], const float32_t weights[], uint32_t weights_size);
+
 /*
 float32_t feed_forward(const float32_t* a, const sourceLayer* b, const targetLayer* w);
 float32_t feed_forward_basic_net(const float32_t* a, const basicNetB* b, const basicNetW* w);

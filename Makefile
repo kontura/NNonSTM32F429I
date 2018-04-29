@@ -5,7 +5,7 @@ SRCS = system_stm32f4xx.c stm32f429i_discovery_sdram.c stm32f4xx_hal_sdram.c stm
 			 stm32f4xx_hal_msp.c stm32f4xx_hal_tim.c stm32f4xx_hal_tim_ex.c stm32f4xx_hal.c stm32f4xx_hal_gpio.c stm32f4xx_hal_ltdc.c \
 			 stm32f4xx_hal_rcc.c stm32f4xx_hal_cortex.c stm32f4xx_hal_rcc_ex.c stm32f4xx_hal_pwr_ex.c \
 			 stm32f429i_discovery.c stm32f4xx_hal_i2c.c stm32f4xx_hal_spi.c stm32f4xx_hal_dma.c \
-			 arm_conv_f32.c arm_conv_partial_f32.c arm_copy_f32.c arm_mat_add_f32.c\
+			 arm_max_f32.c arm_dot_prod_f32.c arm_conv_f32.c arm_fill_f32.c arm_conv_partial_f32.c arm_copy_f32.c arm_mat_add_f32.c arm_add_f32.c\
 			 stm32f4xx_ll_fmc.c ili9341.c syscalls.c conv.c activation_functions.c tests.c utility.c main.c 
 # all the files will be generated with this name (main.elf, main.bin, main.hex, etc)
 
@@ -26,11 +26,13 @@ CFLAGS += -mfloat-abi=hard -mfpu=fpv4-sp-d16
 ###################################################
 
 vpath %.c Src \
-					${cube}/Drivers/STM32F4xx_HAL_Driver/Src/ 						  \
+					${cube}/Drivers/STM32F4xx_HAL_Driver/Src/ 						 	 \
 					${cube}/Drivers/BSP/STM32F429I-Discovery/								 \
 					${cube}/Drivers/CMSIS/DSP_Lib/Source/FilteringFunctions/ \
-					${cube}/Drivers/CMSIS/DSP_Lib/Source/SupportFunctions/ \
-					${cube}/Drivers/CMSIS/DSP_Lib/Source/MatrixFunctions/ \
+					${cube}/Drivers/CMSIS/DSP_Lib/Source/BasicMathFunctions/ \
+					${cube}/Drivers/CMSIS/DSP_Lib/Source/SupportFunctions/	 \
+					${cube}/Drivers/CMSIS/DSP_Lib/Source/MatrixFunctions/		 \
+					${cube}/Drivers/CMSIS/DSP_Lib/Source/StatisticsFunctions/		 \
 					${cube}/Drivers/BSP/Components/ili9341/
 
 
