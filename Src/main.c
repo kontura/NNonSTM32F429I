@@ -66,28 +66,15 @@ uint32_t *one_spot = (uint32_t*) 0x81A0000;
 /* Private variables ---------------------------------------------------------*/
 TIM_HandleTypeDef TimHandle;
 uint16_t uwPrescalerValue = 0;
-/* SDRAM handler declaration */
-SDRAM_HandleTypeDef hsdram;
-FMC_SDRAM_TimingTypeDef SDRAM_Timing;
-FMC_SDRAM_CommandTypeDef command;
-
-/* Read/Write Buffers */
-uint32_t aTxBuffer[BUFFER_SIZE];
-float32_t aRxBuffer[BUFFER_SIZE];
 
 /* Status variables */
 __IO uint32_t uwWriteReadStatus = 0;
-
-/* Counter index */
-uint32_t uwIndex = 0;
 
 uint64_t time_counter = 0;
 
 /* Private function prototypes -----------------------------------------------*/
 static void SystemClock_Config(void);
 static void Error_Handler(void);
-static void SDRAM_Initialization_Sequence(SDRAM_HandleTypeDef *hsdram, FMC_SDRAM_CommandTypeDef *Command);
-static void Fill_Buffer(uint32_t *pBuffer, uint32_t uwBufferLenght, uint32_t uwOffset);
 
 /* Private functions ---------------------------------------------------------*/
 
@@ -135,98 +122,14 @@ int main(void)
     Error_Handler();
   }
   
-
-  /*##-1- Configure the SDRAM device #########################################*/
-  /* SDRAM device configuration */ 
-  hsdram.Instance = FMC_SDRAM_DEVICE;
-  
-  /* Timing configuration for 90 MHz of SDRAM clock frequency (180MHz/2) */
-  /* TMRD: 2 Clock cycles */
-  SDRAM_Timing.LoadToActiveDelay    = 2;
-  /* TXSR: min=70ns (6x11.90ns) */
-  SDRAM_Timing.ExitSelfRefreshDelay = 7;
-  /* TRAS: min=42ns (4x11.90ns) max=120k (ns) */
-  SDRAM_Timing.SelfRefreshTime      = 4;
-  /* TRC:  min=63 (6x11.90ns) */        
-  SDRAM_Timing.RowCycleDelay        = 7;
-  /* TWR:  2 Clock cycles */
-  SDRAM_Timing.WriteRecoveryTime    = 2;
-  /* TRP:  15ns => 2x11.90ns */
-  SDRAM_Timing.RPDelay              = 2;
-  /* TRCD: 15ns => 2x11.90ns */
-  SDRAM_Timing.RCDDelay             = 2;
-
-  hsdram.Init.SDBank             = FMC_SDRAM_BANK2;
-  hsdram.Init.ColumnBitsNumber   = FMC_SDRAM_COLUMN_BITS_NUM_8;
-  hsdram.Init.RowBitsNumber      = FMC_SDRAM_ROW_BITS_NUM_12;
-  hsdram.Init.MemoryDataWidth    = SDRAM_MEMORY_WIDTH;
-  hsdram.Init.InternalBankNumber = FMC_SDRAM_INTERN_BANKS_NUM_4;
-  hsdram.Init.CASLatency         = FMC_SDRAM_CAS_LATENCY_3;
-  hsdram.Init.WriteProtection    = FMC_SDRAM_WRITE_PROTECTION_DISABLE;
-  hsdram.Init.SDClockPeriod      = SDCLOCK_PERIOD;
-  hsdram.Init.ReadBurst          = FMC_SDRAM_RBURST_DISABLE;
-  hsdram.Init.ReadPipeDelay      = FMC_SDRAM_RPIPE_DELAY_1;
-
-  /* Initialize the SDRAM controller */
-  if(HAL_SDRAM_Init(&hsdram, &SDRAM_Timing) != HAL_OK)
-  {
-    /* Initialization Error */
-    Error_Handler(); 
-  }
-  
-  /* Program the SDRAM external device */
-  SDRAM_Initialization_Sequence(&hsdram, &command);   
-    
-  /*##-2- SDRAM memory read/write access #####################################*/  
-  
-  /* Fill the buffer to write */
-  Fill_Buffer(aTxBuffer, BUFFER_SIZE, 0xA244250F);   
-
-/* Write data to the SDRAM memory */
-  for (uwIndex = 0; uwIndex < 20000; uwIndex++)
-  {
-    *(__IO float32_t*) (SDRAM_BANK_ADDR + WRITE_READ_ADDR + 4*uwIndex) = l1_w[uwIndex];
-  }    
-  for (uwIndex = 20000; uwIndex < 84000; uwIndex++)
-  {
-    *(__IO float32_t*) (SDRAM_BANK_ADDR + WRITE_READ_ADDR + 4*uwIndex) = l2_w[uwIndex];
-  }    
-
-/* Read back data from the SDRAM memory */
-  for (uwIndex = 0; uwIndex < BUFFER_SIZE; uwIndex++)
-  {
-    aRxBuffer[uwIndex] = *(__IO float32_t*) (SDRAM_BANK_ADDR + WRITE_READ_ADDR + 4*uwIndex);
-   } 
-
-/*##-3- Checking data integrity ############################################*/    
-
-  for (uwIndex = 0; (uwIndex < BUFFER_SIZE) && (uwWriteReadStatus == 0); uwIndex++)
-  {
-    if (aRxBuffer[uwIndex] != l1_w[uwIndex])
-    {
-      uwWriteReadStatus++;
-    }
-  }	
-
   BSP_LED_Off(LED3);
   BSP_LED_Off(LED3);
-  if (!test())
-  {
-    /* KO */
-    /* Turn on LED4 */
+
+  if (!test()) {
     BSP_LED_On(LED4);     
-  }
-  else
-  { 
-    /* OK */
-    /* Turn on LED3 */
+  } else { 
     BSP_LED_On(LED3);
   }
-
- // float32_t l0_w_all_in_one[15013] = {[0 ... 15012] = 0};
- // for(uint32_t i=0; i<20; i++){
- //   arm_copy_f32(l0_w_o+(i*117), l0_w_all_in_one+((19-i)*(28*28)), 117);
- // }
 
   /*##-2- Start the TIM Base generation in interrupt mode ####################*/
   /* Start Channel1 */
@@ -238,10 +141,10 @@ int main(void)
 
   //currently 36 tests
   // its starting to take a while
-  //
+  
   //uint32_t out = net_2layers(num1);
- // uint32_t out2 = classifier_test(&net_2layers);
- // uint32_t out3 = classifier_test(&net_3layers);
+  //uint32_t out2 = classifier_test(&net_2layers);
+  //uint32_t out3 = classifier_test(&net_3layers);
   //uint32_t out5 = classifier_test(&net_5layers);
   uint32_t out5_o = classifier_test(&net_5layers_optimized);
   /*##-2- Start the TIM Base generation in interrupt mode ####################*/
@@ -563,83 +466,12 @@ static void Error_Handler(void)
 }
 
 /**
-  * @brief  Perform the SDRAM exernal memory inialization sequence
-  * @param  hsdram: SDRAM handle
-  * @param  Command: Pointer to SDRAM command structure
-  * @retval None
-  */
-static void SDRAM_Initialization_Sequence(SDRAM_HandleTypeDef *hsdram, FMC_SDRAM_CommandTypeDef *Command)
-{
-  __IO uint32_t tmpmrd =0;
-  /* Step 3:  Configure a clock configuration enable command */
-  Command->CommandMode 			 = FMC_SDRAM_CMD_CLK_ENABLE;
-  Command->CommandTarget 		 = FMC_SDRAM_CMD_TARGET_BANK2;
-  Command->AutoRefreshNumber 	 = 1;
-  Command->ModeRegisterDefinition = 0;
-
-  /* Send the command */
-  HAL_SDRAM_SendCommand(hsdram, Command, 0x1000);
-
-  /* Step 4: Insert 100 ms delay */
-  HAL_Delay(100);
-    
-  /* Step 5: Configure a PALL (precharge all) command */ 
-  Command->CommandMode 			 = FMC_SDRAM_CMD_PALL;
-  Command->CommandTarget 	     = FMC_SDRAM_CMD_TARGET_BANK2;
-  Command->AutoRefreshNumber 	 = 1;
-  Command->ModeRegisterDefinition = 0;
-
-  /* Send the command */
-  HAL_SDRAM_SendCommand(hsdram, Command, 0x1000);  
-  
-  /* Step 6 : Configure a Auto-Refresh command */ 
-  Command->CommandMode 			 = FMC_SDRAM_CMD_AUTOREFRESH_MODE;
-  Command->CommandTarget 		 = FMC_SDRAM_CMD_TARGET_BANK2;
-  Command->AutoRefreshNumber 	 = 4;
-  Command->ModeRegisterDefinition = 0;
-
-  /* Send the command */
-  HAL_SDRAM_SendCommand(hsdram, Command, 0x1000);
-  
-  /* Step 7: Program the external memory mode register */
-  tmpmrd = (uint32_t)SDRAM_MODEREG_BURST_LENGTH_2          |
-                     SDRAM_MODEREG_BURST_TYPE_SEQUENTIAL   |
-                     SDRAM_MODEREG_CAS_LATENCY_3           |
-                     SDRAM_MODEREG_OPERATING_MODE_STANDARD |
-                     SDRAM_MODEREG_WRITEBURST_MODE_SINGLE;
-  
-  Command->CommandMode = FMC_SDRAM_CMD_LOAD_MODE;
-  Command->CommandTarget 		 = FMC_SDRAM_CMD_TARGET_BANK2;
-  Command->AutoRefreshNumber 	 = 1;
-  Command->ModeRegisterDefinition = tmpmrd;
-
-  /* Send the command */
-  HAL_SDRAM_SendCommand(hsdram, Command, 0x1000);
-  
-  /* Step 8: Set the refresh rate counter */
-  /* (15.62 us x Freq) - 20 */
-  /* Set the device refresh counter */
-  HAL_SDRAM_ProgramRefreshRate(hsdram, REFRESH_COUNT); 
-}
-                  
-/**
   * @brief  Fills buffer with user predefined data.
   * @param  pBuffer: pointer on the buffer to fill
   * @param  uwBufferLenght: size of the buffer to fill
   * @param  uwOffset: first value to fill on the buffer
   * @retval None
   */
-static void Fill_Buffer(uint32_t *pBuffer, uint32_t uwBufferLenght, uint32_t uwOffset)
-{
-  uint32_t tmpIndex = 0;
-
-  /* Put in global buffer different values */
-  for (tmpIndex = 0; tmpIndex < uwBufferLenght; tmpIndex++ )
-  {
-    pBuffer[tmpIndex] = tmpIndex + uwOffset;
-  }
-}                  
-
 #ifdef  USE_FULL_ASSERT
 /**
   * @brief  Reports the name of the source file and the source line number
