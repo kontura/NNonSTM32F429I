@@ -6,7 +6,8 @@ SRCS = system_stm32f4xx.c stm32f429i_discovery_sdram.c stm32f4xx_hal_sdram.c stm
 			 stm32f4xx_hal_rcc.c stm32f4xx_hal_cortex.c stm32f4xx_hal_rcc_ex.c stm32f4xx_hal_pwr_ex.c \
 			 stm32f429i_discovery.c stm32f4xx_hal_i2c.c stm32f4xx_hal_spi.c stm32f4xx_hal_dma.c \
 			 arm_max_f32.c arm_dot_prod_f32.c arm_conv_f32.c arm_fill_f32.c arm_conv_partial_f32.c arm_copy_f32.c arm_mat_add_f32.c arm_add_f32.c\
-			 stm32f4xx_ll_fmc.c ili9341.c syscalls.c conv.c activation_functions.c tests.c utility.c main.c 
+			 arm_offset_f32.c \
+			 stm32f4xx_ll_fmc.c ili9341.c syscalls.c conv.c activation_functions.c tests.c utility.c math_helper.c main.c 
 # all the files will be generated with this name (main.elf, main.bin, main.hex, etc)
 
 PROJ_NAME=main
@@ -60,7 +61,7 @@ proj: 	$(PROJ_NAME).elf
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 $(PROJ_NAME).elf: $(OBJS)
-	$(CC) $(CFLAGS) $(OBJS) -o $@ 
+	$(CC) $(CFLAGS) $(OBJS) -o $@ -lm
 	$(OBJCOPY) -O ihex $(PROJ_NAME).elf $(PROJ_NAME).hex
 	$(OBJCOPY) -O binary $(PROJ_NAME).elf $(PROJ_NAME).bin
 

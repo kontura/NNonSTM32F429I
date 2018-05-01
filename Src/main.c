@@ -436,10 +436,13 @@ uint32_t net_5layers_optimized(const float32_t* letter){
   for(uint32_t i=0; i<l0_size; i++){
     convolution_optimized(letter, 28, l0_feature_maps+(i*24*24), l0_w_o+(i*(5*5+4*23)), 5);
     pooling_optimized(l0_feature_maps+(i*24*24), l0_pooled_feature_maps+(i*12*12), 24, &arm_max_f32);
-    for(uint32_t j=0; j<12*12; j++){
-      (l0_pooled_feature_maps+(i*12*12))[j] = ReLU((l0_pooled_feature_maps+(i*12*12))[j] + l0_b[i]);
-    }
+
+//    for(uint32_t j=0; j<12*12; j++){
+//      (l0_pooled_feature_maps+(i*12*12))[j] = ReLU((l0_pooled_feature_maps+(i*12*12))[j] + l0_b[i]);
+//    }
+    arm_offset_f32(l0_pooled_feature_maps+(i*12*12), l0_b[i], l0_pooled_feature_maps+(i*12*12), 12*12);
   }
+  arm_fn_f32(l0_pooled_feature_maps, l0_pooled_feature_maps, (12*12)*l0_size, &ReLU);
 
   //layer 1
   for(uint32_t i=0; i<l1_size; i++){
@@ -454,7 +457,6 @@ uint32_t net_5layers_optimized(const float32_t* letter){
   }
 
   //layer 2
-  float32_t tmp;
   for(uint32_t i=0; i<l2_size; i++){
    // for(uint32_t j=0; j<l1_size;j++){
    //   //l2_full_connection[i] += dot_product_with_nth_column(l1_pooled_feature_maps+(j*4*4), l2_w+((j*4*4*100)+i), 4*4, 100);
@@ -463,8 +465,10 @@ uint32_t net_5layers_optimized(const float32_t* letter){
    //   l2_full_connection[i] += tmp;
    // }
     arm_dot_prod_f32(l1_pooled_feature_maps, l2_w_o+(i*4*4*40), 4*4*40, l2_full_connection+i);
-    l2_full_connection[i] = ReLU(l2_full_connection[i] + l2_b[i]);
+//    l2_full_connection[i] = ReLU(l2_full_connection[i] + l2_b[i]);
   }
+  arm_add_f32(l2_full_connection, l2_b, l2_full_connection, l2_size);
+  arm_fn_f32(l2_full_connection, l2_full_connection, l2_size, &ReLU);
 
   //layer 3
   for(uint32_t i=0; i<l3_size; i++){
