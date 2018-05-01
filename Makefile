@@ -47,7 +47,8 @@ CFLAGS += -I${cube}/Drivers/BSP/STM32F429I-Discovery/
 
 SRCS += SW4STM32/startup_stm32f429xx.s # add startup file to build
 
-OBJS = $(SRCS:.c=.o)
+#OBJS = $(SRCS:.c=.o)
+OBJS = $(patsubst %.c, obj/%.o, $(SRCS))
 
 ###################################################
 
@@ -57,7 +58,7 @@ all: proj
 
 proj: 	$(PROJ_NAME).elf
 
-%.o: %.c
+obj/%.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 $(PROJ_NAME).elf: $(OBJS)
@@ -70,3 +71,4 @@ clean:
 	rm -f $(PROJ_NAME).hex
 	rm -f $(PROJ_NAME).bin
 	rm -f *.o
+	rm -f obj/*.o
