@@ -41,7 +41,7 @@
 #include "letters10_30.h"
 #include "test_letters.h"
 //#include "tmp_out.h"
-#include "exported_for_test19.h"
+#include "exported_for_test17.h"
 
 #include "tmp_out_s.h"
 #include "tmp_out_ss.h"
@@ -252,6 +252,13 @@ int main(void)
     Error_Handler();
   }
 
+  GPIO_InitTypeDef GPIO_InitStruct;
+  __HAL_RCC_GPIOC_CLK_ENABLE();
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Pin = GPIO_PIN_8;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
   /* Infinite loop */  
   BSP_LED_On(LED4);     
   *one_spot = net_5layers_optimized(dynamic_letter);
@@ -404,8 +411,8 @@ uint32_t net_5layers(const float32_t* letter){
 
 uint32_t net_5layers_optimized(const float32_t* letter){
   //float32_t l0_feature_maps[24*24*20] = {[0 ... 11519] = 0};
-  //float32_t l0_feature_maps[24*24*21] = {[0 ... (24*24*21)-1] = 0}; //multiply by 21, cause we need some execess space for insitu convolution
-  float32_t l0_feature_maps[18680+24*24] = {[0 ... (24*24+18680)-1] = 0};
+  float32_t l0_feature_maps[24*24*21] = {[0 ... (24*24*21)-1] = 0}; //multiply by 21, cause we need some execess space for insitu convolution
+ // float32_t l0_feature_maps[18680+24*24] = {[0 ... (24*24+18680)-1] = 0};
   float32_t l0_pooled_feature_maps[12*12*20] = {[0 ... (12*12*20)-1] = 0};
 
   float32_t l1_feature_maps[8*8*40] = {[0 ... 2559] = 0};
@@ -425,9 +432,9 @@ uint32_t net_5layers_optimized(const float32_t* letter){
 
   //layer 0
 
-  convolution_optimized_one_go(letter, 28, l0_feature_maps, l0_w_o_in_one, 15680);
+  //convolution_optimized_one_go(letter, 28, l0_feature_maps, l0_w_o_in_one, 15680);
   for(uint32_t i=0; i<l0_size; i++){
-   // convolution_optimized(letter, 28, l0_feature_maps+(i*24*24), l0_w_o+(i*(5*5+4*23)), 5);
+    convolution_optimized(letter, 28, l0_feature_maps+(i*24*24), l0_w_o+(i*(5*5+4*23)), 5);
     pooling_optimized(l0_feature_maps+(i*24*24), l0_pooled_feature_maps+(i*12*12), 24, &arm_max_f32);
     for(uint32_t j=0; j<12*12; j++){
       (l0_pooled_feature_maps+(i*12*12))[j] = ReLU((l0_pooled_feature_maps+(i*12*12))[j] + l0_b[i]);
@@ -447,6 +454,7 @@ uint32_t net_5layers_optimized(const float32_t* letter){
   }
 
   //layer 2
+  float32_t tmp;
   for(uint32_t i=0; i<l2_size; i++){
    // for(uint32_t j=0; j<l1_size;j++){
    //   //l2_full_connection[i] += dot_product_with_nth_column(l1_pooled_feature_maps+(j*4*4), l2_w+((j*4*4*100)+i), 4*4, 100);
