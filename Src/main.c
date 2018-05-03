@@ -40,12 +40,19 @@
 #include "letter.h"
 #include "letters10_30.h"
 #include "test_letters.h"
-//#include "tmp_out.h"
-#include "exported_for_test17.h"
 
-#include "tmp_out_s.h"
-#include "tmp_out_ss.h"
-/** @addtogroup STM32F4xx_HAL_Examples
+#ifdef PROFILE
+  #include "exported_for_test_prof.h"
+#else
+  #include "exported_for_test17.h"
+#endif
+
+
+#ifdef PROFILE
+  #include "tmp_out_s.h"
+  #include "tmp_out_ss.h"
+#endif
+  /** @addtogroup STM32F4xx_HAL_Examples
   * @{
   */
 
@@ -60,7 +67,7 @@
 #define REFRESH_COUNT       ((uint32_t)0x056A)   /* SDRAM refresh counter (90MHz SDRAM clock) */
     
 float32_t *dynamic_letter = (float32_t*) 0x8180000;
-uint32_t *one_spot = (uint32_t*) 0x81A0000;
+volatile unsigned int *one_spot = (volatile unsigned int *)0x81A0000;
 
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
@@ -70,13 +77,12 @@ uint16_t uwPrescalerValue = 0;
 /* Status variables */
 __IO uint32_t uwWriteReadStatus = 0;
 
-uint64_t time_counter = 0;
 
 /* Private function prototypes -----------------------------------------------*/
 static void SystemClock_Config(void);
-static void Error_Handler(void);
 
 /* Private functions ---------------------------------------------------------*/
+extern uint64_t time_counter = 0;
 
 /**
   * @brief  Main program
@@ -101,6 +107,7 @@ int main(void)
   SystemClock_Config();
   
   /* Compute the prescaler value to have TIM3 counter clock equal to 10 KHz */
+  //uwPrescalerValue = (uint32_t) ((SystemCoreClock /2) / 10000) - 1; //orinal setting, with which most measurments were done
   uwPrescalerValue = (uint32_t) ((SystemCoreClock /2) / 10000) - 1;
   
   /* Set TIMx instance */
@@ -131,44 +138,47 @@ int main(void)
     BSP_LED_On(LED3);
   }
 
-  /*##-2- Start the TIM Base generation in interrupt mode ####################*/
-  /* Start Channel1 */
-  if(HAL_TIM_Base_Start_IT(&TimHandle) != HAL_OK)
-  {
-    /* Starting Error */
-    Error_Handler();
-  }
+  start_time_measure(TimHandle);
 
   //currently 36 tests
-  // its starting to take a while
   
   //uint32_t out = net_2layers(num1);
   //uint32_t out2 = classifier_test(&net_2layers);
   //uint32_t out3 = classifier_test(&net_3layers);
   //uint32_t out5 = classifier_test(&net_5layers);
-  uint32_t out5_o = classifier_test(&net_5layers_optimized);
-  /*##-2- Start the TIM Base generation in interrupt mode ####################*/
-  /* Start Channel1 */
-  if(HAL_TIM_Base_Stop_IT(&TimHandle) != HAL_OK)
-  {
-    /* Starting Error */
-    Error_Handler();
-  }
+  uint32_t out5 = classifier_test(&net_5layers_optimized);
+  //uint32_t out5_o = classifier_test(&net_5layers_optimized_max);
+
+  uint64_t time = stop_time_measure(TimHandle);
+
 
   GPIO_InitTypeDef GPIO_InitStruct;
   __HAL_RCC_GPIOC_CLK_ENABLE();
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
-  GPIO_InitStruct.Pin = GPIO_PIN_8;
+  GPIO_InitStruct.Pin = GPIO_PIN_4;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_4, GPIO_PIN_RESET);
+
+  *one_spot = 42;
+
+#ifdef PROFILE
+  time_profiling(TimHandle);
+#endif
 
   /* Infinite loop */  
-  BSP_LED_On(LED4);     
-  *one_spot = net_5layers_optimized(dynamic_letter);
-  while (1)
-  {
+  BSP_LED_Off(LED3);
+  BSP_LED_Off(LED3);
+  if (out5 == 35){
+    BSP_LED_On(LED3);     
+    while(1) {}
+  }else{
+    BSP_LED_On(LED4);     
+    while(1) {}
   }
+
 }
+
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
@@ -176,6 +186,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   BSP_LED_Toggle(LED3);
 }
 
+#ifdef PROFILE
 uint32_t net_2layers(const float32_t* letter){
   float32_t l0_feature_maps[24*24*20] = {[0 ... 11519] = 0};
   float32_t l0_pooled_feature_maps[12*12*20] = {[0 ... (12*12*20)-1] = 0};
@@ -249,6 +260,7 @@ uint32_t net_3layers(const float32_t* letter){
   return index_of_most_probable(out);
 
 }
+#endif
 
 uint32_t net_5layers(const float32_t* letter){
   float32_t l0_feature_maps[24*24*20] = {[0 ... 11519] = 0};
@@ -312,6 +324,89 @@ uint32_t net_5layers(const float32_t* letter){
   return index_of_most_probable(out);
 }
 
+uint32_t net_5layers_optimized_max(const float32_t* letter){
+  //float32_t l0_feature_maps[24*24*20] = {[0 ... 11519] = 0};
+  float32_t l0_feature_maps[24*24*21] = {[0 ... (24*24*21)-1] = 0}; //multiply by 21, cause we need some execess space for insitu convolution
+ // float32_t l0_feature_maps[18680+24*24] = {[0 ... (24*24+18680)-1] = 0};
+  float32_t l0_pooled_feature_maps[12*12*20] = {[0 ... (12*12*20)-1] = 0};
+
+  float32_t l1_feature_maps[8*8*40] = {[0 ... 2559] = 0};
+  float32_t tmp_l1_f_m[200] = {[0 ... (200)-1] = 0};
+  float32_t l1_pooled_feature_maps[4*4*40] = {[0 ... (4*4*40)-1] = 0};
+
+  float32_t l2_full_connection[100] = {[0 ... 99] = 0};
+  float32_t l3_full_connection[100] = {[0 ... 99] = 0};
+  float32_t l4_soft_max_result[10] = {[0 ... 9] = 0};
+  float32_t out[10] = {[0 ... 9] = 0};
+
+  uint32_t l0_size = 20;
+  uint32_t l1_size = 40;
+  uint32_t l2_size = 100;
+  uint32_t l3_size = 100;
+  uint32_t l4_size = 10;
+
+  //layer 0
+  //convolution_optimized_one_go(letter, 28, l0_feature_maps, l0_w_o_in_one, 15680);
+  for(uint32_t i=0; i<l0_size; i++){
+    convolution_optimized(letter, 28, l0_feature_maps+(i*24*24), l0_w_o+(i*(5*5+4*23)), 5);
+    pooling_optimized(l0_feature_maps+(i*24*24), l0_pooled_feature_maps+(i*12*12), 24, &arm_max_f32);
+
+//    for(uint32_t j=0; j<12*12; j++){
+//      (l0_pooled_feature_maps+(i*12*12))[j] = ReLU((l0_pooled_feature_maps+(i*12*12))[j] + l0_b[i]);
+//    }
+    arm_offset_f32(l0_pooled_feature_maps+(i*12*12), l0_b[i], l0_pooled_feature_maps+(i*12*12), 12*12);
+  }
+  arm_fn_f32(l0_pooled_feature_maps, l0_pooled_feature_maps, (12*12)*l0_size, &ReLU);
+
+  //layer 1
+  for(uint32_t i=0; i<l1_size; i++){
+    for(uint32_t j=0; j<l0_size; j++){
+      convolution_optimized(l0_pooled_feature_maps+(j*12*12), 12, tmp_l1_f_m, l1_w_o+((i*(5*5+4*7)*l0_size)+(j*(5*5+4*7))), 5);
+      arm_add_f32(l1_feature_maps+(i*8*8), tmp_l1_f_m, l1_feature_maps+(i*8*8), 8*8);
+    }
+    pooling_optimized(l1_feature_maps+(i*8*8), l1_pooled_feature_maps+(i*4*4), 8, &arm_max_f32);
+   // for(uint32_t j=0; j<4*4; j++){
+   //   (l1_pooled_feature_maps+(i*4*4))[j] = ReLU((l1_pooled_feature_maps+(i*4*4))[j] + l1_b[i]);
+   // }
+    arm_offset_f32(l1_pooled_feature_maps+(i*4*4), l1_b[i], l1_pooled_feature_maps+(i*4*4), 4*4);
+  }
+  arm_fn_f32(l1_pooled_feature_maps, l1_pooled_feature_maps, (4*4)*l1_size, &ReLU);
+
+  //layer 2
+  for(uint32_t i=0; i<l2_size; i++){
+   // for(uint32_t j=0; j<l1_size;j++){
+   //   //l2_full_connection[i] += dot_product_with_nth_column(l1_pooled_feature_maps+(j*4*4), l2_w+((j*4*4*100)+i), 4*4, 100);
+
+   //   arm_dot_prod_f32(l1_pooled_feature_maps+(j*4*4), l2_w_o+((i*4*4*40)+(j*4*4)) ,4*4 , &tmp);
+   //   l2_full_connection[i] += tmp;
+   // }
+    arm_dot_prod_f32(l1_pooled_feature_maps, l2_w_o+(i*4*4*40), 4*4*40, l2_full_connection+i);
+//    l2_full_connection[i] = ReLU(l2_full_connection[i] + l2_b[i]);
+  }
+  arm_add_f32(l2_full_connection, l2_b, l2_full_connection, l2_size);
+  arm_fn_f32(l2_full_connection, l2_full_connection, l2_size, &ReLU);
+
+  //layer 3
+  for(uint32_t i=0; i<l3_size; i++){
+    //l3_full_connection[i] = dot_product_with_nth_column(l2_full_connection, l3_w+i, 100, 100);
+    arm_dot_prod_f32(l2_full_connection, l3_w_o+(i*l2_size), l2_size, l3_full_connection+i);
+    //l3_full_connection[i] = ReLU(l3_full_connection[i] + l3_b[i]);
+  }
+  arm_add_f32(l3_full_connection, l3_b, l3_full_connection, l3_size);
+  arm_fn_f32(l3_full_connection, l3_full_connection, l3_size, &ReLU);
+
+  //layer 4
+  for(uint32_t i=0; i<l4_size; i++){
+    //l4_soft_max_result[i] = dot_product_with_nth_column(l3_full_connection, l4_w+i, 100, 10);
+    arm_dot_prod_f32(l3_full_connection, l4_w_o+(i*l3_size), l3_size, l4_soft_max_result+i);
+    //l4_soft_max_result[i] = l4_soft_max_result[i] + l4_b[i];
+  }
+  arm_add_f32(l4_soft_max_result, l4_b, l4_soft_max_result, l4_size);
+  soft_max(l4_soft_max_result, 10, out);
+
+  return index_of_most_probable(out);
+}
+
 uint32_t net_5layers_optimized(const float32_t* letter){
   //float32_t l0_feature_maps[24*24*20] = {[0 ... 11519] = 0};
   float32_t l0_feature_maps[24*24*21] = {[0 ... (24*24*21)-1] = 0}; //multiply by 21, cause we need some execess space for insitu convolution
@@ -334,30 +429,32 @@ uint32_t net_5layers_optimized(const float32_t* letter){
   uint32_t l4_size = 10;
 
   //layer 0
-
-  //convolution_optimized_one_go(letter, 28, l0_feature_maps, l0_w_o_in_one, 15680);
   for(uint32_t i=0; i<l0_size; i++){
-    convolution_optimized(letter, 28, l0_feature_maps+(i*24*24), l0_w_o+(i*(5*5+4*23)), 5);
+    //convolution_optimized(letter, 28, l0_feature_maps+(i*24*24), l0_w_o+(i*(5*5+4*23)), 5);
+    convolution_additive(letter, 28, l0_feature_maps+(i*24*24), l0_w+(i*(5*5)), 5);
     pooling_optimized(l0_feature_maps+(i*24*24), l0_pooled_feature_maps+(i*12*12), 24, &arm_max_f32);
 
-//    for(uint32_t j=0; j<12*12; j++){
-//      (l0_pooled_feature_maps+(i*12*12))[j] = ReLU((l0_pooled_feature_maps+(i*12*12))[j] + l0_b[i]);
-//    }
+   // for(uint32_t j=0; j<12*12; j++){
+   //   (l0_pooled_feature_maps+(i*12*12))[j] = ReLU((l0_pooled_feature_maps+(i*12*12))[j] + l0_b[i]);
+   // }
     arm_offset_f32(l0_pooled_feature_maps+(i*12*12), l0_b[i], l0_pooled_feature_maps+(i*12*12), 12*12);
   }
   arm_fn_f32(l0_pooled_feature_maps, l0_pooled_feature_maps, (12*12)*l0_size, &ReLU);
 
   //layer 1
   for(uint32_t i=0; i<l1_size; i++){
-   for(uint32_t j=0; j<l0_size; j++){
-     convolution_optimized(l0_pooled_feature_maps+(j*12*12), 12, tmp_l1_f_m, l1_w_o+((i*(5*5+4*7)*l0_size)+(j*(5*5+4*7))), 5);
-     arm_add_f32(l1_feature_maps+(i*8*8), tmp_l1_f_m, l1_feature_maps+(i*8*8), 8*8);
-   }
-   pooling_optimized(l1_feature_maps+(i*8*8), l1_pooled_feature_maps+(i*4*4), 8, &arm_max_f32);
-   for(uint32_t j=0; j<4*4; j++){
-     (l1_pooled_feature_maps+(i*4*4))[j] = ReLU((l1_pooled_feature_maps+(i*4*4))[j] + l1_b[i]);
-   }
+    for(uint32_t j=0; j<l0_size; j++){
+      //convolution_optimized(l0_pooled_feature_maps+(j*12*12), 12, tmp_l1_f_m, l1_w_o+((i*(5*5+4*7)*l0_size)+(j*(5*5+4*7))), 5);
+      //arm_add_f32(l1_feature_maps+(i*8*8), tmp_l1_f_m, l1_feature_maps+(i*8*8), 8*8);
+      convolution_additive(l0_pooled_feature_maps+(j*12*12), 12, l1_feature_maps+(i*8*8), l1_w+((i*(5*5)*l0_size)+(j*(5*5))), 5);
+    }
+    pooling_optimized(l1_feature_maps+(i*8*8), l1_pooled_feature_maps+(i*4*4), 8, &arm_max_f32);
+   // for(uint32_t j=0; j<4*4; j++){
+   //   (l1_pooled_feature_maps+(i*4*4))[j] = ReLU((l1_pooled_feature_maps+(i*4*4))[j] + l1_b[i]);
+   // }
+    arm_offset_f32(l1_pooled_feature_maps+(i*4*4), l1_b[i], l1_pooled_feature_maps+(i*4*4), 4*4);
   }
+  arm_fn_f32(l1_pooled_feature_maps, l1_pooled_feature_maps, (4*4)*l1_size, &ReLU);
 
   //layer 2
   for(uint32_t i=0; i<l2_size; i++){
@@ -368,7 +465,7 @@ uint32_t net_5layers_optimized(const float32_t* letter){
    //   l2_full_connection[i] += tmp;
    // }
     arm_dot_prod_f32(l1_pooled_feature_maps, l2_w_o+(i*4*4*40), 4*4*40, l2_full_connection+i);
-//    l2_full_connection[i] = ReLU(l2_full_connection[i] + l2_b[i]);
+   // l2_full_connection[i] = ReLU(l2_full_connection[i] + l2_b[i]);
   }
   arm_add_f32(l2_full_connection, l2_b, l2_full_connection, l2_size);
   arm_fn_f32(l2_full_connection, l2_full_connection, l2_size, &ReLU);
@@ -377,18 +474,18 @@ uint32_t net_5layers_optimized(const float32_t* letter){
   for(uint32_t i=0; i<l3_size; i++){
     //l3_full_connection[i] = dot_product_with_nth_column(l2_full_connection, l3_w+i, 100, 100);
     arm_dot_prod_f32(l2_full_connection, l3_w_o+(i*l2_size), l2_size, l3_full_connection+i);
-    //l2_full_connection[i] += tmp;
-
-
-    l3_full_connection[i] = ReLU(l3_full_connection[i] + l3_b[i]);
+//    l3_full_connection[i] = ReLU(l3_full_connection[i] + l3_b[i]);
   }
+  arm_add_f32(l3_full_connection, l3_b, l3_full_connection, l3_size);
+  arm_fn_f32(l3_full_connection, l3_full_connection, l3_size, &ReLU);
 
   //layer 4
   for(uint32_t i=0; i<l4_size; i++){
     //l4_soft_max_result[i] = dot_product_with_nth_column(l3_full_connection, l4_w+i, 100, 10);
     arm_dot_prod_f32(l3_full_connection, l4_w_o+(i*l3_size), l3_size, l4_soft_max_result+i);
-    l4_soft_max_result[i] = l4_soft_max_result[i] + l4_b[i];
+    //l4_soft_max_result[i] = l4_soft_max_result[i] + l4_b[i];
   }
+  arm_add_f32(l4_soft_max_result, l4_b, l4_soft_max_result, l4_size);
   soft_max(l4_soft_max_result, 10, out);
 
   return index_of_most_probable(out);
@@ -451,27 +548,6 @@ static void SystemClock_Config(void)
   HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_5);
 }
 
-/**
-  * @brief  This function is executed in case of error occurrence.
-  * @param  None
-  * @retval None
-  */
-static void Error_Handler(void)
-{
-  /* Turn LED3 on */
-  BSP_LED_On(LED3);
-  while(1)
-  {
-  }
-}
-
-/**
-  * @brief  Fills buffer with user predefined data.
-  * @param  pBuffer: pointer on the buffer to fill
-  * @param  uwBufferLenght: size of the buffer to fill
-  * @param  uwOffset: first value to fill on the buffer
-  * @retval None
-  */
 #ifdef  USE_FULL_ASSERT
 /**
   * @brief  Reports the name of the source file and the source line number

@@ -260,9 +260,9 @@ uint8_t dot_product_tests(){
                       1,3,4,6,3,2, 
                       1,3,4,6,3,2, 
                       1,3,4,6,3,2};
-  if (dot_product(a1, a1, 6) != 91) return 0;
-  if (dot_product(a2, a1, 6) != 52) return 0;
-  if (dot_product(a3+4, a1, 6) != 76) return 0;
+  if (dot_product(a1, a1,(uint64_t) 6) != 91) return 0;
+  if (dot_product(a2, a1, (uint64_t)6) != 52) return 0;
+  if (dot_product(a3+4, a1, (uint64_t)6) != 76) return 0;
   if (dot_product_with_nth_column(a3+4, a4, 6, 6) != 15) return 0;
   if (dot_product_with_nth_column(a3+4, a4+3, 6, 6) != 90) return 0;
   if (dot_product_with_nth_column(a3+5, a4+(2*6)+1, 2, 6) != 9) return 0;

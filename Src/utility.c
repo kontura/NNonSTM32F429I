@@ -3,6 +3,39 @@
 #include "utility.h"
 
 
+
+/**
+  * @brief  This function is executed in case of error occurrence.
+  * @param  None
+  * @retval None
+  */
+void Error_Handler(void)
+{
+  /* Turn LED3 on */
+  BSP_LED_On(LED3);
+  while(1)
+  {
+  }
+}
+
+void start_time_measure(TIM_HandleTypeDef TimHandle){
+  time_counter = 0;
+  if(HAL_TIM_Base_Start_IT(&TimHandle) != HAL_OK)
+  {
+    /* Starting Error */
+    Error_Handler();
+  }
+}
+
+uint64_t stop_time_measure(TIM_HandleTypeDef TimHandle){
+  if(HAL_TIM_Base_Stop_IT(&TimHandle) != HAL_OK)
+  {
+    /* Starting Error */
+    Error_Handler();
+  }
+  return time_counter;
+}
+
 uint32_t index_of_most_probable(float32_t probabilities[10]){
   uint32_t index_of_max = 0;
   for(uint32_t i=0; i<10;i++){

@@ -12,10 +12,11 @@ float32_t max(float32_t a[], float32_t n){
   return max;
 }
 
-float32_t dot_product(const float32_t w[], const float32_t a[], uint32_t vector_size) {
+float32_t dot_product(const float32_t w[], const float32_t a[], uint64_t vector_size) {
   float32_t result = 0.0f;
-  for (uint32_t i = 0; i < vector_size; i++)
-    result += w[i]*a[i];
+  for (uint64_t i = 0; i < vector_size; i++){
+    result += (float32_t)(w[i]*a[i]);
+  }
   return result;
 }
 
@@ -172,10 +173,6 @@ void convolution_optimized(const float32_t in[], uint32_t input_side, float32_t 
   uint32_t output_size = (output_side)*(output_side+weights_side-1);
   uint32_t weights_size = weights_side * weights_side + ((input_side-weights_side)*(weights_side-1));
 
-  //TODO here could be alloc and then free, yet I dont know how, so far
-  //float32_t conv_out[28*28+116] = {[0 ... 899] = 0};
-  //float32_t conv_out[1001] = calloc(10 * sizeof(float32_t), 0);
-
   //arm_conv_f32(in, input_side*input_side, weights, weights_size, conv_out);
   uint32_t start = weights_size-1;
   //arm_conv_partial_f32(in, input_side*input_side, weights, weights_size, conv_out, start ,output_size);
@@ -185,6 +182,7 @@ void convolution_optimized(const float32_t in[], uint32_t input_side, float32_t 
     arm_copy_f32(out+(i*(input_side))+(weights_size-1), out+(i*(output_side)), output_side);
   }
 }
+
 void convolution_optimized_one_go(const float32_t in[], uint32_t input_side, float32_t out[], const float32_t weights[], uint32_t weights_size){
   uint32_t stride = 1;
   uint32_t output_side = (input_side/stride) - (5 - 1);

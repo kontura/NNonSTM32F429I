@@ -15,7 +15,7 @@ void convolution_with_activation(const float32_t in[], uint32_t input_side, floa
 void convolution_additive(const float32_t in[], uint32_t input_side, float32_t out[], const float32_t weights[], uint32_t weights_side);
 void convolution_additive_optimized(const float32_t in[], uint32_t input_side, float32_t out[], const float32_t weights[], uint32_t weights_side);
 void convolution_optimized(const float32_t in[], uint32_t input_side, float32_t out[], const float32_t weights[], uint32_t weights_side);
-float32_t dot_product(const float32_t w[], const float32_t a[], uint32_t vector_size);
+float32_t dot_product(const float32_t w[], const float32_t a[], uint64_t vector_size);
 float32_t dot_product_with_nth_column(const float32_t w[], const float32_t a[], uint32_t vector_size, uint32_t n);
 
 void convolution_optimized_one_go(const float32_t in[], uint32_t input_side, float32_t out[], const float32_t weights[], uint32_t weights_size);
