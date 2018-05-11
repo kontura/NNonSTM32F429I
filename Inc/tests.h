@@ -22,5 +22,6 @@ uint8_t float_equality(float32_t a, float32_t b, float32_t eps);
 uint8_t float_array_equality(float32_t* a, float32_t* b, uint8_t size, float32_t eps);
 uint8_t most_probable_tests();
 uint8_t classifier_test(uint32_t (*classify)(const float32_t *));
+uint8_t classifier_test_q7_t(uint32_t (*classify)(const float32_t *));
 
 #endif /* __TEST_H */

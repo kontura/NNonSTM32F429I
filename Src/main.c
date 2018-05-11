@@ -44,9 +44,13 @@
 #ifdef PROFILE
   #include "exported_for_test_prof.h"
 #else
+  //#include "exported_for_test1_q9.h"
+  //#include "exported_for_test17_only_opt.h"
   #include "exported_for_test17.h"
 #endif
 
+//#include "net_q7.c"
+//#include "net_q9.c"
 
 #ifdef PROFILE
   #include "tmp_out_s.h"
@@ -128,6 +132,14 @@ int main(void)
     /* Initialization Error */
     Error_Handler();
   }
+
+  GPIO_InitTypeDef GPIO_InitStruct;
+  __HAL_RCC_GPIOC_CLK_ENABLE();
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Pin = GPIO_PIN_4;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_4, GPIO_PIN_RESET);
   
   BSP_LED_Off(LED3);
   BSP_LED_Off(LED3);
@@ -138,6 +150,10 @@ int main(void)
     BSP_LED_On(LED3);
   }
 
+  q15_t letter_q9_t[784] = {[0 ... 783] = 0};
+  arm_float_to_q9(num1, letter_q9_t, 784);
+  uint32_t out5 = 0;
+
   start_time_measure(TimHandle);
 
   //currently 36 tests
@@ -145,20 +161,20 @@ int main(void)
   //uint32_t out = net_2layers(num1);
   //uint32_t out2 = classifier_test(&net_2layers);
   //uint32_t out3 = classifier_test(&net_3layers);
+  net_5layers_optimized(num1);
   //uint32_t out5 = classifier_test(&net_5layers);
-  uint32_t out5 = classifier_test(&net_5layers_optimized);
+//  uint32_t out5 = classifier_test(&net_5layers_optimized);
+ // uint32_t out5 = classifier_test_q9_t(&net_q9_5layers);
+  
+ // uint32_t out5 = 35;
+ // for(uint32_t i=0; i<36;i++){
+ //   net_q9_5layers(letter_q9_t);
+ // }
   //uint32_t out5_o = classifier_test(&net_5layers_optimized_max);
 
   uint64_t time = stop_time_measure(TimHandle);
 
 
-  GPIO_InitTypeDef GPIO_InitStruct;
-  __HAL_RCC_GPIOC_CLK_ENABLE();
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  GPIO_InitStruct.Pin = GPIO_PIN_4;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_4, GPIO_PIN_RESET);
 
   *one_spot = 42;
 
@@ -169,7 +185,7 @@ int main(void)
   /* Infinite loop */  
   BSP_LED_Off(LED3);
   BSP_LED_Off(LED3);
-  if (out5 == 35){
+  if (out5== 35){
     BSP_LED_On(LED3);     
     while(1) {}
   }else{
@@ -303,7 +319,8 @@ uint32_t net_5layers(const float32_t* letter){
   //layer 2
   for(uint32_t i=0; i<l2_size; i++){
     for(uint32_t j=0; j<l1_size;j++){
-      l2_full_connection[i] += dot_product_with_nth_column(l1_pooled_feature_maps+(j*4*4), l2_w+((j*4*4*100)+i), 4*4, 100);
+      //l2_full_connection[i] += dot_product_with_nth_column(l1_pooled_feature_maps+(j*4*4), l2_w+((j*4*4*100)+i), 4*4, 100);
+      l2_full_connection[i] += dot_product(l1_pooled_feature_maps+(j*4*4), l2_w_o+((i*4*4*40)+(j*4*4)), 4*4);
     }
     l2_full_connection[i] = ReLU(l2_full_connection[i] + l2_b[i]);
   }

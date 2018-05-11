@@ -347,6 +347,25 @@ void arm_float_to_q14 (float *pIn, q15_t * pOut,
 
 }
 
+void arm_float_to_q9 (float *pIn, q15_t * pOut, 
+                       uint32_t numSamples)
+{
+  uint32_t i;
+
+  for (i = 0; i < numSamples; i++)
+    {
+	  /* 512.0f corresponds to pow(2, 10) */
+      pOut[i] = (q15_t) (pIn[i] * 512.0f);
+
+      pOut[i] += pIn[i] > 0 ? 0.5 : -0.5;
+
+      if (pIn[i] == (float) 64.0)
+        {
+          pOut[i] = 0x7FFF;
+        }
+    }
+}
+
  
 /** 
  * @brief  Converts float to fixed q30 format

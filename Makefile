@@ -5,14 +5,16 @@ LIBS = stm32f4xx_hal_tim.c stm32f4xx_hal_tim_ex.c stm32f4xx_hal.c stm32f4xx_hal_
 			 stm32f4xx_hal_rcc.c stm32f4xx_hal_cortex.c stm32f4xx_hal_rcc_ex.c stm32f4xx_hal_pwr_ex.c \
 			 stm32f429i_discovery.c stm32f4xx_hal_i2c.c stm32f4xx_hal_spi.c stm32f4xx_hal_dma.c \
 			 arm_max_f32.c arm_dot_prod_f32.c  arm_conv_f32.c arm_conv_partial_f32.c \
-			 arm_copy_f32.c arm_mat_add_f32.c arm_add_f32.c arm_offset_f32.c \
-			 stm32f4xx_ll_fmc.c 
+			 arm_copy_f32.c arm_mat_add_f32.c arm_add_f32.c arm_offset_f32.c arm_offset_q15.c\
+			 stm32f4xx_ll_fmc.c arm_float_to_q15.c arm_max_q15.c arm_add_q15.c arm_dot_prod_q15.c\
+			 arm_q15_to_float.c arm_float_to_q7.c arm_q7_to_float.c
 
 SRCS = ili9341.c syscalls.c conv.c activation_functions.c tests.c utility.c  math_helper.c main.c \
 			 stm32f4xx_hal_msp.c system_stm32f4xx.c stm32f4xx_it.c
 
-PROFILE_LIBS = arm_dot_prod_q31.c arm_conv_q15.c arm_conv_q31.c arm_float_to_q15.c arm_float_to_q7.c \
-							 arm_float_to_q31.c arm_conv_q7.c arm_dot_prod_q15.c arm_dot_prod_q7.c
+PROFILE_LIBS = arm_dot_prod_q31.c arm_conv_q31.c \
+							 arm_float_to_q31.c arm_conv_q15.c arm_dot_prod_q7.c \
+							 arm_conv_q7.c
 							 
 PROFILE_SRCS = time_profiling.c
 
