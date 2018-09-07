@@ -24,7 +24,7 @@ PROJ_NAME=main
 CC=arm-none-eabi-gcc
 OBJCOPY=arm-none-eabi-objcopy
 
-CFLAGS  = -DNDEBUG -g -O3 -Wall -T./SW4STM32/STM32F429I-Discovery/STM32F429ZITx_FLASH.ld -DSTM32F429xx -DARM_MATH_CM4 -D__FPU_PRESENT=1
+CFLAGS  = -DNDEBUG -g -O1 -Wall -T./SW4STM32/STM32F429I-Discovery/STM32F429ZITx_FLASH.ld -DSTM32F429xx -DARM_MATH_CM4 -D__FPU_PRESENT=1
 CFLAGS += -mlittle-endian -mthumb -mcpu=cortex-m4 -mthumb-interwork
 CFLAGS += -mfpu=fpv4-sp-d16 -mfloat-abi=hard
 

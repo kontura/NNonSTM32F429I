@@ -161,16 +161,15 @@ int main(void)
   //uint32_t out = net_2layers(num1);
   //uint32_t out2 = classifier_test(&net_2layers);
   //uint32_t out3 = classifier_test(&net_3layers);
-  net_5layers_optimized(num1);
-  //uint32_t out5 = classifier_test(&net_5layers);
-//  uint32_t out5 = classifier_test(&net_5layers_optimized);
- // uint32_t out5 = classifier_test_q9_t(&net_q9_5layers);
+  //net_5layers_optimized(num1);
+  //out5 = classifier_test(&net_5layers);
+  out5 = classifier_test(&net_5layers_optimized);
+ // out5 = classifier_test_q9_t(&net_q9_5layers);
   
- // uint32_t out5 = 35;
  // for(uint32_t i=0; i<36;i++){
  //   net_q9_5layers(letter_q9_t);
  // }
-  //uint32_t out5_o = classifier_test(&net_5layers_optimized_max);
+  //out5_o = classifier_test(&net_5layers_optimized_max);
 
   uint64_t time = stop_time_measure(TimHandle);
 
@@ -466,9 +465,9 @@ uint32_t net_5layers_optimized(const float32_t* letter){
       convolution_additive(l0_pooled_feature_maps+(j*12*12), 12, l1_feature_maps+(i*8*8), l1_w+((i*(5*5)*l0_size)+(j*(5*5))), 5);
     }
     pooling_optimized(l1_feature_maps+(i*8*8), l1_pooled_feature_maps+(i*4*4), 8, &arm_max_f32);
-   // for(uint32_t j=0; j<4*4; j++){
-   //   (l1_pooled_feature_maps+(i*4*4))[j] = ReLU((l1_pooled_feature_maps+(i*4*4))[j] + l1_b[i]);
-   // }
+  //  for(uint32_t j=0; j<4*4; j++){
+  //    (l1_pooled_feature_maps+(i*4*4))[j] = ReLU((l1_pooled_feature_maps+(i*4*4))[j] + l1_b[i]);
+  //  }
     arm_offset_f32(l1_pooled_feature_maps+(i*4*4), l1_b[i], l1_pooled_feature_maps+(i*4*4), 4*4);
   }
   arm_fn_f32(l1_pooled_feature_maps, l1_pooled_feature_maps, (4*4)*l1_size, &ReLU);
@@ -491,7 +490,7 @@ uint32_t net_5layers_optimized(const float32_t* letter){
   for(uint32_t i=0; i<l3_size; i++){
     //l3_full_connection[i] = dot_product_with_nth_column(l2_full_connection, l3_w+i, 100, 100);
     arm_dot_prod_f32(l2_full_connection, l3_w_o+(i*l2_size), l2_size, l3_full_connection+i);
-//    l3_full_connection[i] = ReLU(l3_full_connection[i] + l3_b[i]);
+   // l3_full_connection[i] = ReLU(l3_full_connection[i] + l3_b[i]);
   }
   arm_add_f32(l3_full_connection, l3_b, l3_full_connection, l3_size);
   arm_fn_f32(l3_full_connection, l3_full_connection, l3_size, &ReLU);
@@ -500,7 +499,7 @@ uint32_t net_5layers_optimized(const float32_t* letter){
   for(uint32_t i=0; i<l4_size; i++){
     //l4_soft_max_result[i] = dot_product_with_nth_column(l3_full_connection, l4_w+i, 100, 10);
     arm_dot_prod_f32(l3_full_connection, l4_w_o+(i*l3_size), l3_size, l4_soft_max_result+i);
-    //l4_soft_max_result[i] = l4_soft_max_result[i] + l4_b[i];
+  //  l4_soft_max_result[i] = l4_soft_max_result[i] + l4_b[i];
   }
   arm_add_f32(l4_soft_max_result, l4_b, l4_soft_max_result, l4_size);
   soft_max(l4_soft_max_result, 10, out);
