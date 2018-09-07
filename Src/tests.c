@@ -45,6 +45,7 @@ uint8_t test(){
   if (pooling_tests() != 1) return 0;
   if (sigmoid_tests() != 1) return 0;
   if (convolution_tests() != 1) return 0;
+  if (convolution_optimized_tests() != 1) return 0;
   if (soft_max_tests() != 1) return 0;
   if (ReLU_tests() != 1) return 0;
   if (dot_product_tests() != 1) return 0;
@@ -179,6 +180,41 @@ uint8_t convolution_tests(){
   return 1;
 }
 
+uint8_t convolution_optimized_tests(){
+  uint32_t input_side = 28;
+  uint32_t weights_side = 5;
+  float32_t in[784] = {[0 ... 783] = 5};
+  float32_t output[1000] = {[0 ... 999] = 0};
+  float32_t weights[25] = {[0 ... 24] = 1};
+  float32_t bias = 0;
+
+  convolution_optimized(in, input_side, output,  weights, weights_side);
+
+  float32_t eps = 0.0001;
+  float32_t out = 125;
+  for(uint32_t i=0; i<576; i++){
+    if (!float_equality(output[i],out,eps)) return 0;
+  }
+
+  //second
+  input_side = 4;
+  weights_side = 2;
+  float32_t in2[16] = {1, 2, 3, 4,
+                       4, 9, 0, 3,
+                       0, 3, 1, 22,
+                       0, 0, 2, 13};
+
+  float32_t weights2[6] = {0, 2, 0, 0, //neccesary weights extension
+                           0.1, 0.5};
+  float32_t output3[229] = {[0 ... 228] = 0};
+  convolution_optimized(in2, input_side, output3,  weights2, weights_side);
+  float32_t correct_results2[9] = {8.7 ,19.3 ,1.9 ,2.9 ,10.5 ,2.3 ,0.3 ,1.6 ,6.7};
+  if (!float_array_equality(output3,correct_results2,9,eps)) return 0;
+
+  return 1;
+}
+
+
 uint8_t soft_max_tests(){
   float32_t in[7] = {1, 2, 3, 4, 1, 2, 3};
   float32_t output[7];
@@ -224,9 +260,9 @@ uint8_t dot_product_tests(){
                       1,3,4,6,3,2, 
                       1,3,4,6,3,2, 
                       1,3,4,6,3,2};
-  if (dot_product(a1, a1, 6) != 91) return 0;
-  if (dot_product(a2, a1, 6) != 52) return 0;
-  if (dot_product(a3+4, a1, 6) != 76) return 0;
+  if (dot_product(a1, a1,(uint64_t) 6) != 91) return 0;
+  if (dot_product(a2, a1, (uint64_t)6) != 52) return 0;
+  if (dot_product(a3+4, a1, (uint64_t)6) != 76) return 0;
   if (dot_product_with_nth_column(a3+4, a4, 6, 6) != 15) return 0;
   if (dot_product_with_nth_column(a3+4, a4+3, 6, 6) != 90) return 0;
   if (dot_product_with_nth_column(a3+5, a4+(2*6)+1, 2, 6) != 9) return 0;
@@ -273,6 +309,186 @@ uint8_t classifier_test(uint32_t (*classify)(const float32_t *)){
   if (classify(test_num6) == 4) counter++;
   if (classify(test_num7) == 9) counter++;
   if (classify(test_num8) == 5) counter++;
+
+  return counter;
+}
+
+uint8_t classifier_test_q7_t(uint32_t (*classify)(const float32_t *)){
+  uint8_t counter = 0;
+  q7_t letter_q7_t[784] = {[0 ... 783] = 0};
+
+  arm_float_to_q7(num1, letter_q7_t, 784);
+
+  if (classify(letter_q7_t) == 3) counter++;
+  arm_float_to_q7(num2, letter_q7_t, 784);
+  if (classify(letter_q7_t) == 9) counter++;
+  arm_float_to_q7(num3, letter_q7_t, 784);
+  if (classify(letter_q7_t) == 7) counter++;
+  arm_float_to_q7(num4, letter_q7_t, 784);
+  if (classify(letter_q7_t) == 6) counter++;
+  arm_float_to_q7(num5, letter_q7_t, 784);
+  if (classify(letter_q7_t) == 1) counter++;
+  arm_float_to_q7(num6, letter_q7_t, 784);
+  if (classify(letter_q7_t) == 2) counter++;
+  arm_float_to_q7(num8, letter_q7_t, 784);
+  if (classify(letter_q7_t) == 4) counter++;
+  arm_float_to_q7(num10, letter_q7_t, 784);
+  if (classify(letter_q7_t) == 3) counter++;
+  arm_float_to_q7(num11, letter_q7_t, 784);
+  if (classify(letter_q7_t) == 5) counter++;
+  arm_float_to_q7(num12, letter_q7_t, 784);
+  if (classify(letter_q7_t) == 3) counter++;
+  arm_float_to_q7(num13, letter_q7_t, 784);
+  if (classify(letter_q7_t) == 6) counter++;
+  arm_float_to_q7(num14, letter_q7_t, 784);
+  if (classify(letter_q7_t) == 1) counter++;
+  arm_float_to_q7(num15, letter_q7_t, 784);
+  if (classify(letter_q7_t) == 7) counter++;
+  arm_float_to_q7(num16, letter_q7_t, 784);
+  if (classify(letter_q7_t) == 2) counter++;
+  arm_float_to_q7(num17, letter_q7_t, 784);
+  if (classify(letter_q7_t) == 8) counter++;
+  arm_float_to_q7(num18, letter_q7_t, 784);
+  if (classify(letter_q7_t) == 6) counter++;
+  arm_float_to_q7(num19, letter_q7_t, 784);
+  if (classify(letter_q7_t) == 9) counter++;
+  arm_float_to_q7(num20, letter_q7_t, 784);
+  if (classify(letter_q7_t) == 4) counter++;
+  arm_float_to_q7(num21, letter_q7_t, 784);
+  if (classify(letter_q7_t) == 0) counter++;
+  arm_float_to_q7(num22, letter_q7_t, 784);
+  if (classify(letter_q7_t) == 9) counter++;
+  arm_float_to_q7(num23, letter_q7_t, 784);
+  if (classify(letter_q7_t) == 1) counter++;
+  arm_float_to_q7(num24, letter_q7_t, 784);
+  if (classify(letter_q7_t) == 1) counter++;
+  arm_float_to_q7(num25, letter_q7_t, 784);
+  if (classify(letter_q7_t) == 2) counter++;
+  arm_float_to_q7(num26, letter_q7_t, 784);
+  if (classify(letter_q7_t) == 4) counter++;
+  arm_float_to_q7(num27, letter_q7_t, 784);
+  if (classify(letter_q7_t) == 3) counter++;
+  arm_float_to_q7(num28, letter_q7_t, 784);
+  if (classify(letter_q7_t) == 2) counter++;
+  arm_float_to_q7(num29, letter_q7_t, 784);
+  if (classify(letter_q7_t) == 7) counter++;
+
+  arm_float_to_q7(test_num0, letter_q7_t, 784);
+  if (classify(letter_q7_t) == 7) counter++;
+
+  arm_float_to_q7(test_num1, letter_q7_t, 784);
+  if (classify(letter_q7_t) == 2) counter++;
+
+  arm_float_to_q7(test_num2, letter_q7_t, 784);
+  if (classify(letter_q7_t) == 1) counter++;
+
+  arm_float_to_q7(test_num3, letter_q7_t, 784);
+  if (classify(letter_q7_t) == 0) counter++;
+
+  arm_float_to_q7(test_num4, letter_q7_t, 784);
+  if (classify(letter_q7_t) == 4) counter++;
+
+  arm_float_to_q7(test_num5, letter_q7_t, 784);
+  if (classify(letter_q7_t) == 1) counter++;
+
+  arm_float_to_q7(test_num6, letter_q7_t, 784);
+  if (classify(letter_q7_t) == 4) counter++;
+
+  arm_float_to_q7(test_num7, letter_q7_t, 784);
+  if (classify(letter_q7_t) == 9) counter++;
+
+  arm_float_to_q7(test_num8, letter_q7_t, 784);
+  if (classify(letter_q7_t) == 5) counter++;
+
+  return counter;
+}
+
+uint8_t classifier_test_q9_t(uint32_t (*classify)(const float32_t *)){
+  uint8_t counter = 0;
+  q15_t letter_q9_t[784] = {[0 ... 783] = 0};
+
+  arm_float_to_q9(num1, letter_q9_t, 784);
+
+  if (classify(letter_q9_t) == 3) counter++;
+  arm_float_to_q9(num2, letter_q9_t, 784);
+  if (classify(letter_q9_t) == 9) counter++;
+  arm_float_to_q9(num3, letter_q9_t, 784);
+  if (classify(letter_q9_t) == 7) counter++;
+  arm_float_to_q9(num4, letter_q9_t, 784);
+  if (classify(letter_q9_t) == 6) counter++;
+  arm_float_to_q9(num5, letter_q9_t, 784);
+  if (classify(letter_q9_t) == 1) counter++;
+  arm_float_to_q9(num6, letter_q9_t, 784);
+  if (classify(letter_q9_t) == 2) counter++;
+  arm_float_to_q9(num8, letter_q9_t, 784);
+  if (classify(letter_q9_t) == 4) counter++;
+  arm_float_to_q9(num10, letter_q9_t, 784);
+  if (classify(letter_q9_t) == 3) counter++;
+  arm_float_to_q9(num11, letter_q9_t, 784);
+  if (classify(letter_q9_t) == 5) counter++;
+  arm_float_to_q9(num12, letter_q9_t, 784);
+  if (classify(letter_q9_t) == 3) counter++;
+  arm_float_to_q9(num13, letter_q9_t, 784);
+  if (classify(letter_q9_t) == 6) counter++;
+  arm_float_to_q9(num14, letter_q9_t, 784);
+  if (classify(letter_q9_t) == 1) counter++;
+  arm_float_to_q9(num15, letter_q9_t, 784);
+  if (classify(letter_q9_t) == 7) counter++;
+  arm_float_to_q9(num16, letter_q9_t, 784);
+  if (classify(letter_q9_t) == 2) counter++;
+  arm_float_to_q9(num17, letter_q9_t, 784);
+  if (classify(letter_q9_t) == 8) counter++;
+  arm_float_to_q9(num18, letter_q9_t, 784);
+  if (classify(letter_q9_t) == 6) counter++;
+  arm_float_to_q9(num19, letter_q9_t, 784);
+  if (classify(letter_q9_t) == 9) counter++;
+  arm_float_to_q9(num20, letter_q9_t, 784);
+  if (classify(letter_q9_t) == 4) counter++;
+  arm_float_to_q9(num21, letter_q9_t, 784);
+  if (classify(letter_q9_t) == 0) counter++;
+  arm_float_to_q9(num22, letter_q9_t, 784);
+  if (classify(letter_q9_t) == 9) counter++;
+  arm_float_to_q9(num23, letter_q9_t, 784);
+  if (classify(letter_q9_t) == 1) counter++;
+  arm_float_to_q9(num24, letter_q9_t, 784);
+  if (classify(letter_q9_t) == 1) counter++;
+  arm_float_to_q9(num25, letter_q9_t, 784);
+  if (classify(letter_q9_t) == 2) counter++;
+  arm_float_to_q9(num26, letter_q9_t, 784);
+  if (classify(letter_q9_t) == 4) counter++;
+  arm_float_to_q9(num27, letter_q9_t, 784);
+  if (classify(letter_q9_t) == 3) counter++;
+  arm_float_to_q9(num28, letter_q9_t, 784);
+  if (classify(letter_q9_t) == 2) counter++;
+  arm_float_to_q9(num29, letter_q9_t, 784);
+  if (classify(letter_q9_t) == 7) counter++;
+
+  arm_float_to_q9(test_num0, letter_q9_t, 784);
+  if (classify(letter_q9_t) == 7) counter++;
+
+  arm_float_to_q9(test_num1, letter_q9_t, 784);
+  if (classify(letter_q9_t) == 2) counter++;
+
+  arm_float_to_q9(test_num2, letter_q9_t, 784);
+  if (classify(letter_q9_t) == 1) counter++;
+
+  arm_float_to_q9(test_num3, letter_q9_t, 784);
+  if (classify(letter_q9_t) == 0) counter++;
+
+  arm_float_to_q9(test_num4, letter_q9_t, 784);
+  if (classify(letter_q9_t) == 4) counter++;
+
+  arm_float_to_q9(test_num5, letter_q9_t, 784);
+  if (classify(letter_q9_t) == 1) counter++;
+
+  arm_float_to_q9(test_num6, letter_q9_t, 784);
+  if (classify(letter_q9_t) == 4) counter++;
+
+  arm_float_to_q9(test_num7, letter_q9_t, 784);
+  if (classify(letter_q9_t) == 9) counter++;
+
+  arm_float_to_q9(test_num8, letter_q9_t, 784);
+  if (classify(letter_q9_t) == 5) counter++;
 
   return counter;
 }

@@ -40,12 +40,23 @@
 #include "letter.h"
 #include "letters10_30.h"
 #include "test_letters.h"
-//#include "tmp_out.h"
-#include "exported_for_test8.h"
 
-#include "tmp_out_s.h"
-#include "tmp_out_ss.h"
-/** @addtogroup STM32F4xx_HAL_Examples
+#ifdef PROFILE
+  #include "exported_for_test_prof.h"
+#else
+  //#include "exported_for_test1_q9.h"
+  //#include "exported_for_test17_only_opt.h"
+  #include "exported_for_test17.h"
+#endif
+
+//#include "net_q7.c"
+//#include "net_q9.c"
+
+#ifdef PROFILE
+  #include "tmp_out_s.h"
+  #include "tmp_out_ss.h"
+#endif
+  /** @addtogroup STM32F4xx_HAL_Examples
   * @{
   */
 
@@ -59,30 +70,23 @@
 #define WRITE_READ_ADDR     ((uint32_t)0x0800)
 #define REFRESH_COUNT       ((uint32_t)0x056A)   /* SDRAM refresh counter (90MHz SDRAM clock) */
     
+float32_t *dynamic_letter = (float32_t*) 0x8180000;
+volatile unsigned int *one_spot = (volatile unsigned int *)0x81A0000;
+
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
-/* SDRAM handler declaration */
-SDRAM_HandleTypeDef hsdram;
-FMC_SDRAM_TimingTypeDef SDRAM_Timing;
-FMC_SDRAM_CommandTypeDef command;
-
-/* Read/Write Buffers */
-uint32_t aTxBuffer[BUFFER_SIZE];
-float32_t aRxBuffer[BUFFER_SIZE];
+TIM_HandleTypeDef TimHandle;
+uint16_t uwPrescalerValue = 0;
 
 /* Status variables */
 __IO uint32_t uwWriteReadStatus = 0;
 
-/* Counter index */
-uint32_t uwIndex = 0;
 
 /* Private function prototypes -----------------------------------------------*/
 static void SystemClock_Config(void);
-static void Error_Handler(void);
-static void SDRAM_Initialization_Sequence(SDRAM_HandleTypeDef *hsdram, FMC_SDRAM_CommandTypeDef *Command);
-static void Fill_Buffer(uint32_t *pBuffer, uint32_t uwBufferLenght, uint32_t uwOffset);
 
 /* Private functions ---------------------------------------------------------*/
+extern uint64_t time_counter = 0;
 
 /**
   * @brief  Main program
@@ -106,108 +110,98 @@ int main(void)
   /* Configure the system clock to 180 MHz */
   SystemClock_Config();
   
-  /*##-1- Configure the SDRAM device #########################################*/
-  /* SDRAM device configuration */ 
-  hsdram.Instance = FMC_SDRAM_DEVICE;
+  /* Compute the prescaler value to have TIM3 counter clock equal to 10 KHz */
+  //uwPrescalerValue = (uint32_t) ((SystemCoreClock /2) / 10000) - 1; //orinal setting, with which most measurments were done
+  uwPrescalerValue = (uint32_t) ((SystemCoreClock /2) / 10000) - 1;
   
-  /* Timing configuration for 90 MHz of SDRAM clock frequency (180MHz/2) */
-  /* TMRD: 2 Clock cycles */
-  SDRAM_Timing.LoadToActiveDelay    = 2;
-  /* TXSR: min=70ns (6x11.90ns) */
-  SDRAM_Timing.ExitSelfRefreshDelay = 7;
-  /* TRAS: min=42ns (4x11.90ns) max=120k (ns) */
-  SDRAM_Timing.SelfRefreshTime      = 4;
-  /* TRC:  min=63 (6x11.90ns) */        
-  SDRAM_Timing.RowCycleDelay        = 7;
-  /* TWR:  2 Clock cycles */
-  SDRAM_Timing.WriteRecoveryTime    = 2;
-  /* TRP:  15ns => 2x11.90ns */
-  SDRAM_Timing.RPDelay              = 2;
-  /* TRCD: 15ns => 2x11.90ns */
-  SDRAM_Timing.RCDDelay             = 2;
-
-  hsdram.Init.SDBank             = FMC_SDRAM_BANK2;
-  hsdram.Init.ColumnBitsNumber   = FMC_SDRAM_COLUMN_BITS_NUM_8;
-  hsdram.Init.RowBitsNumber      = FMC_SDRAM_ROW_BITS_NUM_12;
-  hsdram.Init.MemoryDataWidth    = SDRAM_MEMORY_WIDTH;
-  hsdram.Init.InternalBankNumber = FMC_SDRAM_INTERN_BANKS_NUM_4;
-  hsdram.Init.CASLatency         = FMC_SDRAM_CAS_LATENCY_3;
-  hsdram.Init.WriteProtection    = FMC_SDRAM_WRITE_PROTECTION_DISABLE;
-  hsdram.Init.SDClockPeriod      = SDCLOCK_PERIOD;
-  hsdram.Init.ReadBurst          = FMC_SDRAM_RBURST_DISABLE;
-  hsdram.Init.ReadPipeDelay      = FMC_SDRAM_RPIPE_DELAY_1;
-
-  /* Initialize the SDRAM controller */
-  if(HAL_SDRAM_Init(&hsdram, &SDRAM_Timing) != HAL_OK)
+  /* Set TIMx instance */
+  TimHandle.Instance = TIMx;
+  /* Initialize TIM3 peripheral as follows:
+       + Period = 10000 - 1
+       + Prescaler = ((SystemCoreClock/2)/10000) - 1
+       + ClockDivision = 0
+       + Counter direction = Up
+  */
+  //TimHandle.Init.Period = 10000 - 1;  //1sec counter, cause I have freq 10KHz, counting to 10K -> 1s
+  TimHandle.Init.Period = 10 - 1;       //0.25 sec counter, cause I have freq 10KHz, counting to 2,5K -> 1ms
+  TimHandle.Init.Prescaler = uwPrescalerValue;
+  TimHandle.Init.ClockDivision = 0;
+  TimHandle.Init.CounterMode = TIM_COUNTERMODE_UP;
+  if(HAL_TIM_Base_Init(&TimHandle) != HAL_OK)
   {
     /* Initialization Error */
-    Error_Handler(); 
+    Error_Handler();
   }
-  
-  /* Program the SDRAM external device */
-  SDRAM_Initialization_Sequence(&hsdram, &command);   
-    
-  /*##-2- SDRAM memory read/write access #####################################*/  
-  
-  /* Fill the buffer to write */
-  Fill_Buffer(aTxBuffer, BUFFER_SIZE, 0xA244250F);   
-  
-  /* Write data to the SDRAM memory */
-//  for (uwIndex = 0; uwIndex < 20000; uwIndex++)
-//  {
-//    *(__IO float32_t*) (SDRAM_BANK_ADDR + WRITE_READ_ADDR + 4*uwIndex) = l1_w[uwIndex];
-//  }    
-//  for (uwIndex = 20000; uwIndex < 84000; uwIndex++)
-//  {
-//    *(__IO float32_t*) (SDRAM_BANK_ADDR + WRITE_READ_ADDR + 4*uwIndex) = l2_w[uwIndex];
-//  }    
-  
-  /* Read back data from the SDRAM memory */
-//  for (uwIndex = 0; uwIndex < BUFFER_SIZE; uwIndex++)
-//  {
-//    aRxBuffer[uwIndex] = *(__IO float32_t*) (SDRAM_BANK_ADDR + WRITE_READ_ADDR + 4*uwIndex);
-//   } 
 
-  /*##-3- Checking data integrity ############################################*/    
-
-//  for (uwIndex = 0; (uwIndex < BUFFER_SIZE) && (uwWriteReadStatus == 0); uwIndex++)
-//  {
-//    if (aRxBuffer[uwIndex] != l1_w[uwIndex])
-//    {
-//      uwWriteReadStatus++;
-//    }
-//  }	
-//
+  GPIO_InitTypeDef GPIO_InitStruct;
+  __HAL_RCC_GPIOC_CLK_ENABLE();
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Pin = GPIO_PIN_4;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_4, GPIO_PIN_RESET);
+  
   BSP_LED_Off(LED3);
   BSP_LED_Off(LED3);
-  if (!test())
-  {
-    /* KO */
-    /* Turn on LED4 */
+
+  if (!test()) {
     BSP_LED_On(LED4);     
-  }
-  else
-  { 
-    /* OK */
-    /* Turn on LED3 */
+  } else { 
     BSP_LED_On(LED3);
   }
 
+  q15_t letter_q9_t[784] = {[0 ... 783] = 0};
+  arm_float_to_q9(num1, letter_q9_t, 784);
+  uint32_t out5 = 0;
+
+  start_time_measure(TimHandle);
+
   //currently 36 tests
-  // its starting to take a while
-  //
+  
   //uint32_t out = net_2layers(num1);
-  uint32_t out2 = classifier_test(&net_2layers);
-  uint32_t out3 = classifier_test(&net_3layers);
-  uint32_t out5 = classifier_test(&net_5layers);
+  //uint32_t out2 = classifier_test(&net_2layers);
+  //uint32_t out3 = classifier_test(&net_3layers);
+  //net_5layers_optimized(num1);
+  //out5 = classifier_test(&net_5layers);
+  out5 = classifier_test(&net_5layers_optimized);
+ // out5 = classifier_test_q9_t(&net_q9_5layers);
+  
+ // for(uint32_t i=0; i<36;i++){
+ //   net_q9_5layers(letter_q9_t);
+ // }
+  //out5_o = classifier_test(&net_5layers_optimized_max);
+
+  uint64_t time = stop_time_measure(TimHandle);
+
+
+
+  *one_spot = 42;
+
+#ifdef PROFILE
+  time_profiling(TimHandle);
+#endif
 
   /* Infinite loop */  
-  BSP_LED_On(LED4);     
-  while (1)
-  {
+  BSP_LED_Off(LED3);
+  BSP_LED_Off(LED3);
+  if (out5== 35){
+    BSP_LED_On(LED3);     
+    while(1) {}
+  }else{
+    BSP_LED_On(LED4);     
+    while(1) {}
   }
+
 }
 
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  time_counter++;
+  BSP_LED_Toggle(LED3);
+}
+
+#ifdef PROFILE
 uint32_t net_2layers(const float32_t* letter){
   float32_t l0_feature_maps[24*24*20] = {[0 ... 11519] = 0};
   float32_t l0_pooled_feature_maps[12*12*20] = {[0 ... (12*12*20)-1] = 0};
@@ -281,6 +275,7 @@ uint32_t net_3layers(const float32_t* letter){
   return index_of_most_probable(out);
 
 }
+#endif
 
 uint32_t net_5layers(const float32_t* letter){
   float32_t l0_feature_maps[24*24*20] = {[0 ... 11519] = 0};
@@ -302,7 +297,6 @@ uint32_t net_5layers(const float32_t* letter){
 
   //layer 0
   for(uint32_t i=0; i<l0_size; i++){
-    //TODO arm_conv_f32() viz. docu about CMSIS-DSP
     convolution_additive(letter, 28, l0_feature_maps+(i*24*24), l0_w+(i*5*5), 5);
     pooling(l0_feature_maps+(i*24*24), l0_pooled_feature_maps+(i*12*12), 24, &max);
     for(uint32_t j=0; j<12*12; j++){
@@ -324,7 +318,8 @@ uint32_t net_5layers(const float32_t* letter){
   //layer 2
   for(uint32_t i=0; i<l2_size; i++){
     for(uint32_t j=0; j<l1_size;j++){
-      l2_full_connection[i] += dot_product_with_nth_column(l1_pooled_feature_maps+(j*4*4), l2_w+((j*4*4*100)+i), 4*4, 100);
+      //l2_full_connection[i] += dot_product_with_nth_column(l1_pooled_feature_maps+(j*4*4), l2_w+((j*4*4*100)+i), 4*4, 100);
+      l2_full_connection[i] += dot_product(l1_pooled_feature_maps+(j*4*4), l2_w_o+((i*4*4*40)+(j*4*4)), 4*4);
     }
     l2_full_connection[i] = ReLU(l2_full_connection[i] + l2_b[i]);
   }
@@ -340,6 +335,173 @@ uint32_t net_5layers(const float32_t* letter){
     l4_soft_max_result[i] = dot_product_with_nth_column(l3_full_connection, l4_w+i, 100, 10);
     l4_soft_max_result[i] = l4_soft_max_result[i] + l4_b[i];
   }
+  soft_max(l4_soft_max_result, 10, out);
+
+  return index_of_most_probable(out);
+}
+
+uint32_t net_5layers_optimized_max(const float32_t* letter){
+  //float32_t l0_feature_maps[24*24*20] = {[0 ... 11519] = 0};
+  float32_t l0_feature_maps[24*24*21] = {[0 ... (24*24*21)-1] = 0}; //multiply by 21, cause we need some execess space for insitu convolution
+ // float32_t l0_feature_maps[18680+24*24] = {[0 ... (24*24+18680)-1] = 0};
+  float32_t l0_pooled_feature_maps[12*12*20] = {[0 ... (12*12*20)-1] = 0};
+
+  float32_t l1_feature_maps[8*8*40] = {[0 ... 2559] = 0};
+  float32_t tmp_l1_f_m[200] = {[0 ... (200)-1] = 0};
+  float32_t l1_pooled_feature_maps[4*4*40] = {[0 ... (4*4*40)-1] = 0};
+
+  float32_t l2_full_connection[100] = {[0 ... 99] = 0};
+  float32_t l3_full_connection[100] = {[0 ... 99] = 0};
+  float32_t l4_soft_max_result[10] = {[0 ... 9] = 0};
+  float32_t out[10] = {[0 ... 9] = 0};
+
+  uint32_t l0_size = 20;
+  uint32_t l1_size = 40;
+  uint32_t l2_size = 100;
+  uint32_t l3_size = 100;
+  uint32_t l4_size = 10;
+
+  //layer 0
+  //convolution_optimized_one_go(letter, 28, l0_feature_maps, l0_w_o_in_one, 15680);
+  for(uint32_t i=0; i<l0_size; i++){
+    convolution_optimized(letter, 28, l0_feature_maps+(i*24*24), l0_w_o+(i*(5*5+4*23)), 5);
+    pooling_optimized(l0_feature_maps+(i*24*24), l0_pooled_feature_maps+(i*12*12), 24, &arm_max_f32);
+
+//    for(uint32_t j=0; j<12*12; j++){
+//      (l0_pooled_feature_maps+(i*12*12))[j] = ReLU((l0_pooled_feature_maps+(i*12*12))[j] + l0_b[i]);
+//    }
+    arm_offset_f32(l0_pooled_feature_maps+(i*12*12), l0_b[i], l0_pooled_feature_maps+(i*12*12), 12*12);
+  }
+  arm_fn_f32(l0_pooled_feature_maps, l0_pooled_feature_maps, (12*12)*l0_size, &ReLU);
+
+  //layer 1
+  for(uint32_t i=0; i<l1_size; i++){
+    for(uint32_t j=0; j<l0_size; j++){
+      convolution_optimized(l0_pooled_feature_maps+(j*12*12), 12, tmp_l1_f_m, l1_w_o+((i*(5*5+4*7)*l0_size)+(j*(5*5+4*7))), 5);
+      arm_add_f32(l1_feature_maps+(i*8*8), tmp_l1_f_m, l1_feature_maps+(i*8*8), 8*8);
+    }
+    pooling_optimized(l1_feature_maps+(i*8*8), l1_pooled_feature_maps+(i*4*4), 8, &arm_max_f32);
+   // for(uint32_t j=0; j<4*4; j++){
+   //   (l1_pooled_feature_maps+(i*4*4))[j] = ReLU((l1_pooled_feature_maps+(i*4*4))[j] + l1_b[i]);
+   // }
+    arm_offset_f32(l1_pooled_feature_maps+(i*4*4), l1_b[i], l1_pooled_feature_maps+(i*4*4), 4*4);
+  }
+  arm_fn_f32(l1_pooled_feature_maps, l1_pooled_feature_maps, (4*4)*l1_size, &ReLU);
+
+  //layer 2
+  for(uint32_t i=0; i<l2_size; i++){
+   // for(uint32_t j=0; j<l1_size;j++){
+   //   //l2_full_connection[i] += dot_product_with_nth_column(l1_pooled_feature_maps+(j*4*4), l2_w+((j*4*4*100)+i), 4*4, 100);
+
+   //   arm_dot_prod_f32(l1_pooled_feature_maps+(j*4*4), l2_w_o+((i*4*4*40)+(j*4*4)) ,4*4 , &tmp);
+   //   l2_full_connection[i] += tmp;
+   // }
+    arm_dot_prod_f32(l1_pooled_feature_maps, l2_w_o+(i*4*4*40), 4*4*40, l2_full_connection+i);
+//    l2_full_connection[i] = ReLU(l2_full_connection[i] + l2_b[i]);
+  }
+  arm_add_f32(l2_full_connection, l2_b, l2_full_connection, l2_size);
+  arm_fn_f32(l2_full_connection, l2_full_connection, l2_size, &ReLU);
+
+  //layer 3
+  for(uint32_t i=0; i<l3_size; i++){
+    //l3_full_connection[i] = dot_product_with_nth_column(l2_full_connection, l3_w+i, 100, 100);
+    arm_dot_prod_f32(l2_full_connection, l3_w_o+(i*l2_size), l2_size, l3_full_connection+i);
+    //l3_full_connection[i] = ReLU(l3_full_connection[i] + l3_b[i]);
+  }
+  arm_add_f32(l3_full_connection, l3_b, l3_full_connection, l3_size);
+  arm_fn_f32(l3_full_connection, l3_full_connection, l3_size, &ReLU);
+
+  //layer 4
+  for(uint32_t i=0; i<l4_size; i++){
+    //l4_soft_max_result[i] = dot_product_with_nth_column(l3_full_connection, l4_w+i, 100, 10);
+    arm_dot_prod_f32(l3_full_connection, l4_w_o+(i*l3_size), l3_size, l4_soft_max_result+i);
+    //l4_soft_max_result[i] = l4_soft_max_result[i] + l4_b[i];
+  }
+  arm_add_f32(l4_soft_max_result, l4_b, l4_soft_max_result, l4_size);
+  soft_max(l4_soft_max_result, 10, out);
+
+  return index_of_most_probable(out);
+}
+
+uint32_t net_5layers_optimized(const float32_t* letter){
+  //float32_t l0_feature_maps[24*24*20] = {[0 ... 11519] = 0};
+  float32_t l0_feature_maps[24*24*21] = {[0 ... (24*24*21)-1] = 0}; //multiply by 21, cause we need some execess space for insitu convolution
+ // float32_t l0_feature_maps[18680+24*24] = {[0 ... (24*24+18680)-1] = 0};
+  float32_t l0_pooled_feature_maps[12*12*20] = {[0 ... (12*12*20)-1] = 0};
+
+  float32_t l1_feature_maps[8*8*40] = {[0 ... 2559] = 0};
+  float32_t tmp_l1_f_m[200] = {[0 ... (200)-1] = 0};
+  float32_t l1_pooled_feature_maps[4*4*40] = {[0 ... (4*4*40)-1] = 0};
+
+  float32_t l2_full_connection[100] = {[0 ... 99] = 0};
+  float32_t l3_full_connection[100] = {[0 ... 99] = 0};
+  float32_t l4_soft_max_result[10] = {[0 ... 9] = 0};
+  float32_t out[10] = {[0 ... 9] = 0};
+
+  uint32_t l0_size = 20;
+  uint32_t l1_size = 40;
+  uint32_t l2_size = 100;
+  uint32_t l3_size = 100;
+  uint32_t l4_size = 10;
+
+  //layer 0
+  for(uint32_t i=0; i<l0_size; i++){
+    //convolution_optimized(letter, 28, l0_feature_maps+(i*24*24), l0_w_o+(i*(5*5+4*23)), 5);
+    convolution_additive(letter, 28, l0_feature_maps+(i*24*24), l0_w+(i*(5*5)), 5);
+    pooling_optimized(l0_feature_maps+(i*24*24), l0_pooled_feature_maps+(i*12*12), 24, &arm_max_f32);
+
+   // for(uint32_t j=0; j<12*12; j++){
+   //   (l0_pooled_feature_maps+(i*12*12))[j] = ReLU((l0_pooled_feature_maps+(i*12*12))[j] + l0_b[i]);
+   // }
+    arm_offset_f32(l0_pooled_feature_maps+(i*12*12), l0_b[i], l0_pooled_feature_maps+(i*12*12), 12*12);
+  }
+  arm_fn_f32(l0_pooled_feature_maps, l0_pooled_feature_maps, (12*12)*l0_size, &ReLU);
+
+  //layer 1
+  for(uint32_t i=0; i<l1_size; i++){
+    for(uint32_t j=0; j<l0_size; j++){
+      //convolution_optimized(l0_pooled_feature_maps+(j*12*12), 12, tmp_l1_f_m, l1_w_o+((i*(5*5+4*7)*l0_size)+(j*(5*5+4*7))), 5);
+      //arm_add_f32(l1_feature_maps+(i*8*8), tmp_l1_f_m, l1_feature_maps+(i*8*8), 8*8);
+      convolution_additive(l0_pooled_feature_maps+(j*12*12), 12, l1_feature_maps+(i*8*8), l1_w+((i*(5*5)*l0_size)+(j*(5*5))), 5);
+    }
+    pooling_optimized(l1_feature_maps+(i*8*8), l1_pooled_feature_maps+(i*4*4), 8, &arm_max_f32);
+  //  for(uint32_t j=0; j<4*4; j++){
+  //    (l1_pooled_feature_maps+(i*4*4))[j] = ReLU((l1_pooled_feature_maps+(i*4*4))[j] + l1_b[i]);
+  //  }
+    arm_offset_f32(l1_pooled_feature_maps+(i*4*4), l1_b[i], l1_pooled_feature_maps+(i*4*4), 4*4);
+  }
+  arm_fn_f32(l1_pooled_feature_maps, l1_pooled_feature_maps, (4*4)*l1_size, &ReLU);
+
+  //layer 2
+  for(uint32_t i=0; i<l2_size; i++){
+   // for(uint32_t j=0; j<l1_size;j++){
+   //   //l2_full_connection[i] += dot_product_with_nth_column(l1_pooled_feature_maps+(j*4*4), l2_w+((j*4*4*100)+i), 4*4, 100);
+
+   //   arm_dot_prod_f32(l1_pooled_feature_maps+(j*4*4), l2_w_o+((i*4*4*40)+(j*4*4)) ,4*4 , &tmp);
+   //   l2_full_connection[i] += tmp;
+   // }
+    arm_dot_prod_f32(l1_pooled_feature_maps, l2_w_o+(i*4*4*40), 4*4*40, l2_full_connection+i);
+   // l2_full_connection[i] = ReLU(l2_full_connection[i] + l2_b[i]);
+  }
+  arm_add_f32(l2_full_connection, l2_b, l2_full_connection, l2_size);
+  arm_fn_f32(l2_full_connection, l2_full_connection, l2_size, &ReLU);
+
+  //layer 3
+  for(uint32_t i=0; i<l3_size; i++){
+    //l3_full_connection[i] = dot_product_with_nth_column(l2_full_connection, l3_w+i, 100, 100);
+    arm_dot_prod_f32(l2_full_connection, l3_w_o+(i*l2_size), l2_size, l3_full_connection+i);
+   // l3_full_connection[i] = ReLU(l3_full_connection[i] + l3_b[i]);
+  }
+  arm_add_f32(l3_full_connection, l3_b, l3_full_connection, l3_size);
+  arm_fn_f32(l3_full_connection, l3_full_connection, l3_size, &ReLU);
+
+  //layer 4
+  for(uint32_t i=0; i<l4_size; i++){
+    //l4_soft_max_result[i] = dot_product_with_nth_column(l3_full_connection, l4_w+i, 100, 10);
+    arm_dot_prod_f32(l3_full_connection, l4_w_o+(i*l3_size), l3_size, l4_soft_max_result+i);
+  //  l4_soft_max_result[i] = l4_soft_max_result[i] + l4_b[i];
+  }
+  arm_add_f32(l4_soft_max_result, l4_b, l4_soft_max_result, l4_size);
   soft_max(l4_soft_max_result, 10, out);
 
   return index_of_most_probable(out);
@@ -401,98 +563,6 @@ static void SystemClock_Config(void)
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV2;  
   HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_5);
 }
-
-/**
-  * @brief  This function is executed in case of error occurrence.
-  * @param  None
-  * @retval None
-  */
-static void Error_Handler(void)
-{
-  /* Turn LED3 on */
-  BSP_LED_On(LED3);
-  while(1)
-  {
-  }
-}
-
-/**
-  * @brief  Perform the SDRAM exernal memory inialization sequence
-  * @param  hsdram: SDRAM handle
-  * @param  Command: Pointer to SDRAM command structure
-  * @retval None
-  */
-static void SDRAM_Initialization_Sequence(SDRAM_HandleTypeDef *hsdram, FMC_SDRAM_CommandTypeDef *Command)
-{
-  __IO uint32_t tmpmrd =0;
-  /* Step 3:  Configure a clock configuration enable command */
-  Command->CommandMode 			 = FMC_SDRAM_CMD_CLK_ENABLE;
-  Command->CommandTarget 		 = FMC_SDRAM_CMD_TARGET_BANK2;
-  Command->AutoRefreshNumber 	 = 1;
-  Command->ModeRegisterDefinition = 0;
-
-  /* Send the command */
-  HAL_SDRAM_SendCommand(hsdram, Command, 0x1000);
-
-  /* Step 4: Insert 100 ms delay */
-  HAL_Delay(100);
-    
-  /* Step 5: Configure a PALL (precharge all) command */ 
-  Command->CommandMode 			 = FMC_SDRAM_CMD_PALL;
-  Command->CommandTarget 	     = FMC_SDRAM_CMD_TARGET_BANK2;
-  Command->AutoRefreshNumber 	 = 1;
-  Command->ModeRegisterDefinition = 0;
-
-  /* Send the command */
-  HAL_SDRAM_SendCommand(hsdram, Command, 0x1000);  
-  
-  /* Step 6 : Configure a Auto-Refresh command */ 
-  Command->CommandMode 			 = FMC_SDRAM_CMD_AUTOREFRESH_MODE;
-  Command->CommandTarget 		 = FMC_SDRAM_CMD_TARGET_BANK2;
-  Command->AutoRefreshNumber 	 = 4;
-  Command->ModeRegisterDefinition = 0;
-
-  /* Send the command */
-  HAL_SDRAM_SendCommand(hsdram, Command, 0x1000);
-  
-  /* Step 7: Program the external memory mode register */
-  tmpmrd = (uint32_t)SDRAM_MODEREG_BURST_LENGTH_2          |
-                     SDRAM_MODEREG_BURST_TYPE_SEQUENTIAL   |
-                     SDRAM_MODEREG_CAS_LATENCY_3           |
-                     SDRAM_MODEREG_OPERATING_MODE_STANDARD |
-                     SDRAM_MODEREG_WRITEBURST_MODE_SINGLE;
-  
-  Command->CommandMode = FMC_SDRAM_CMD_LOAD_MODE;
-  Command->CommandTarget 		 = FMC_SDRAM_CMD_TARGET_BANK2;
-  Command->AutoRefreshNumber 	 = 1;
-  Command->ModeRegisterDefinition = tmpmrd;
-
-  /* Send the command */
-  HAL_SDRAM_SendCommand(hsdram, Command, 0x1000);
-  
-  /* Step 8: Set the refresh rate counter */
-  /* (15.62 us x Freq) - 20 */
-  /* Set the device refresh counter */
-  HAL_SDRAM_ProgramRefreshRate(hsdram, REFRESH_COUNT); 
-}
-                  
-/**
-  * @brief  Fills buffer with user predefined data.
-  * @param  pBuffer: pointer on the buffer to fill
-  * @param  uwBufferLenght: size of the buffer to fill
-  * @param  uwOffset: first value to fill on the buffer
-  * @retval None
-  */
-static void Fill_Buffer(uint32_t *pBuffer, uint32_t uwBufferLenght, uint32_t uwOffset)
-{
-  uint32_t tmpIndex = 0;
-
-  /* Put in global buffer different values */
-  for (tmpIndex = 0; tmpIndex < uwBufferLenght; tmpIndex++ )
-  {
-    pBuffer[tmpIndex] = tmpIndex + uwOffset;
-  }
-}                  
 
 #ifdef  USE_FULL_ASSERT
 /**

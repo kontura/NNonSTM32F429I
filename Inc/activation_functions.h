@@ -11,6 +11,8 @@
 float32_t exponential(uint32_t n, float32_t x);
 float32_t sigmoid(float32_t z);
 float32_t ReLU(float32_t z);
+q7_t ReLU_q7(q7_t z);
+q15_t ReLU_q15(q15_t z);
 void soft_max(float32_t* input, uint32_t input_size, float32_t* output);
 
 #endif /* __activations_fce_H */

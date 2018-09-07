@@ -47,9 +47,16 @@
 #include "utility.h"
 #include "activation_functions.h"
 
+#ifdef PROFILE
+  #include "time_profiling.h"
+#endif
+
+
 uint32_t net_2layers(const float32_t* letter);
 uint32_t net_3layers(const float32_t* letter);
 uint32_t net_5layers(const float32_t* letter);
+uint32_t net_5layers_optimized(const float32_t* letter);
+uint32_t net_5layers_optimized_max(const float32_t* letter);
 
 /* Exported types ------------------------------------------------------------*/
 /* Exported constants --------------------------------------------------------*/
@@ -77,6 +84,12 @@ uint32_t net_5layers(const float32_t* letter);
 
 /* Exported macro ------------------------------------------------------------*/
 /* Exported functions ------------------------------------------------------- */
+
+#define TIMx  TIM3
+#define TIMx_CLK_ENABLE  __HAL_RCC_TIM3_CLK_ENABLE
+//for TIMx's NVIC
+#define TIMx_IRQn  TIM3_IRQn
+#define TIMx_IRQHandler  TIM3_IRQHandler
 
 #endif /* __MAIN_H */
 

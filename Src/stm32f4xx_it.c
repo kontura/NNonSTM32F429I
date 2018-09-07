@@ -51,6 +51,7 @@
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
+extern TIM_HandleTypeDef      TimHandle;
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 
@@ -172,6 +173,9 @@ void SysTick_Handler(void)
 {
 }*/
 
+void TIMx_IRQHandler(void){
+  HAL_TIM_IRQHandler(&TimHandle);
+}
 
 /**
   * @}
